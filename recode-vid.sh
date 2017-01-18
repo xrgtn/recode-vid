@@ -407,7 +407,7 @@ if [ "z$SID" != "znone" ] ; then
 	z-[0-9]*) sid="`expr "$NSUB" + "$SID"`" ;;
 	*)        die "invalid -sid: $sid" ;;
     esac
-    # Force hardsubs if the specified stream is found:
+    # Render subs if the specified stream is found:
     if [ 0 -le $sid ] && [ $sid -lt $NSUB ] ; then
 	eval "s=\"\$SUBS$sid\""	; # s=$SUBS0, s=$SUBS1 etc...
 				  # depending on $sid
