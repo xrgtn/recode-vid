@@ -295,7 +295,7 @@ if [ "z$AID" = "z" ] && [ "z$ALANG" != "z" ] ; then
 		case "$cdc" in
 		    *\(default\))
 			DEF_AID="$NAUD"
-			cdc="${cdc%(default)}"
+			cdc="${cdc% (default)}"
 			;;
 		esac
 		sel=""
