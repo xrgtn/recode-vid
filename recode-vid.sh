@@ -84,14 +84,6 @@ eint() {
 }
 trap eint INT
 
-# video input/output files and directories:
-IN_FILE=""
-IN_FILE_BNAME=""
-IN_FILE_EXT=""
-IN_DIR=""
-OUT_FILE=""
-OUT_FILE_BNAME=""
-OUT_DIR=""
 # video/subtitles params:
 VID="0:v:0"
 SID=""
