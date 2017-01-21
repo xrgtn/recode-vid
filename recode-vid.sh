@@ -358,8 +358,14 @@ done
 
 # Detect audio stream ID:
 if [ "z$AID" = "z" ] && [ "z$ALANG" != "z" ] ; then
-    echo ffmpeg -i "$IN0"
-    ffmpeg -i "$IN0" >"$TMP_OUT" 2>&1
+    ffmpeg="ffmpeg -hide_banner"
+    i=0
+    while [ "$i" -lt "$INC" ] ; do
+	ffmpeg="$ffmpeg -i \"\$IN$i\""
+	incr i
+    done
+    eval "echo $ffmpeg"
+    eval "$ffmpeg >\"\$TMP_OUT\" 2>&1"
     NAUD=0
     DEF_AID=""
     while read L ; do
@@ -370,9 +376,11 @@ if [ "z$AID" = "z" ] && [ "z$ALANG" != "z" ] ; then
 	case $L in
 	    *Stream\ *:\ Audio:\ *)
 		id="${L#*Stream #}"
-		id="${id%%): Audio*}"
-		aid="${id%(*}"
+		id="${id%%: Audio*}"
+		aid="${id%%(*}"
+		aid="${aid%%\[*}"
 		lng="${id#*(}"
+		lng="${lng%%)*}"
 		cdc="${L#*Stream*Audio: }"
 		case "$cdc" in
 		    *\(default\))
