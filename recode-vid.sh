@@ -473,7 +473,7 @@ if [ "z$SID" != "znone" ] ; then
 	'$ARGV[0] =~ s/([]*?[])/\\\\$1/g; print $ARGV[0]' \
 	-- "${IN0BNAME%.*}"`"
     # Look for .ass and .srt files:
-    find "$IN_DIR" -name "$IN_FIND_NAME*.ass" \
+    find "$IN0DIR" -name "$IN_FIND_NAME*.ass" \
 	-o -name "$IN_FIND_NAME*.ASS" \
 	-o -name "$IN_FIND_NAME*.srt" \
 	-o -name "$IN_FIND_NAME*.SRT" | sort >"$TMP_OUT"
