@@ -365,6 +365,8 @@ if [ "z$AID" = "z" ] && [ "z$ALANG" != "z" ] ; then
     while read L ; do
 	# Stream #0:1(rus): Audio: aac (HE-AAC), 44100 Hz, 5.1,
 	# fltp (default)
+	# Stream #0:1[0x1100]: Audio: pcm_bluray (HDMV / 0x564D4448),
+	# 48000 Hz, stereo, s16, 1536 kb/s
 	case $L in
 	    *Stream\ *:\ Audio:\ *)
 		id="${L#*Stream #}"
@@ -398,14 +400,22 @@ if [ "z$AID" = "z" ] ; then AID="0:a:0" ; fi
 # Detect max volume and raise it if THRESH_VOL is set:
 if [ "z$ADD_VOL" = "z" ] && [ "z$THRESH_VOL" != "z" ] \
 	&& [ "z$THRESH_VOL" != "znone" ] ; then
-    echo ffmpeg -i "$IN0" -map_metadata -1 -map_chapters -1 \
-	-sn -vn -map "$AID" -c:a "$AC" -af \
-	"${AFPRE_OTHER}asyncts=min_delta=$ASD,aresample=${ARATE}och=2:osf=fltp:ocl=downmix,volumedetect$AF_OTHER" \
-	-f matroska -y /dev/null
-    ffmpeg -i "$IN0" -map_metadata -1 -map_chapters -1 \
-       	-sn -vn -map "$AID" -c:a "$AC" -af \
-       	"${AFPRE_OTHER}asyncts=min_delta=$ASD,aresample=${ARATE}och=2:osf=fltp:ocl=downmix,volumedetect$AF_OTHER" \
-	-f matroska -y /dev/null 2>&1 | tee "$TMP_OUT"
+    ffmpeg="ffmpeg"
+    i=0
+    while [ "$i" -lt "$INC" ] ; do
+	ffmpeg="$ffmpeg -i \"\$IN$i\""
+	incr i
+    done
+    aresample="aresample=\${ARATE}och=2:osf=fltp:ocl=downmix"
+    asyncts="asyncts=min_delta=\$ASD"
+    teelog="2>&1 | tee \"\$TMP_OUT\""
+    ffmpeg="$ffmpeg -map_metadata -1 -map_chapters -1 -sn -vn"
+    ffmpeg="$ffmpeg -map \"\$AID\" -c:a \"\$AC\""
+    ffmpeg="$ffmpeg -af \"\${AFPRE_OTHER}asyncts=min_delta=\$ASD"
+    ffmpeg="$ffmpeg,aresample=\${ARATE}och=2:osf=fltp:ocl=downmix"
+    ffmpeg="$ffmpeg,volumedetect\$AF_OTHER\" -f matroska -y /dev/null"
+    eval "echo $ffmpeg"
+    eval "$ffmpeg $teelog"
     MAX_VOL=""
     # [Parsed_volumedetect_1 @ 0xc92960] max_volume: -1.4 dB
     MAX_VOL="`sed -nr \
