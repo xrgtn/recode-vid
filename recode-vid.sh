@@ -65,8 +65,15 @@ TMP_SUBS=""	; # temporary file or symlink for subtitles
 
 die() {
     rm -f "${TMPF}".*
-    echo "ERROR:" "$@" 1>&2
-    exit 1
+    E=1
+    if [ 0 -lt $# ] && expr "z$1" : 'z[0-9][0-9]*$' >/dev/null ; then
+	E="$1"
+	shift
+    fi
+    if [ 0 -lt $# ] ; then
+	echo "ERROR:" "$@" 1>&2
+    fi
+    exit "$E"
 }
 
 eint() {
@@ -111,6 +118,7 @@ AF_VOL=""	; # "volume" audio filter
 AF_OTHER=""	; # other audio filters to append
 AFPRE_OTHER=""	; # other audio filters to prepend
 # other params:
+OVWR_OUT="-y"	; # "overwrite output file" option
 ARG_CNT=0	; # arguments counter
 CUR_OPT="none"	; # current option
 A_CNT=0		; # args count
@@ -160,6 +168,10 @@ while [ 0 -lt $# ] ; do
 	    VF_SCALE=",scale=h=$A:w=ceil(iw*oh/ih/sar/2)*2,setsar=sar=1"
 	    CUR_OPT="none"
 	    ;;
+	-n)
+	    OVWR_OUT="-n"
+	    CUR_OPT="none"
+	    ;;
 	-sid)
 	    SID="$A"
 	    CUR_OPT="none"
@@ -199,6 +211,10 @@ while [ 0 -lt $# ] ; do
 	    ;;
 	-w)
 	    VF_SCALE=",scale=w=$A:h=ceil(ih*ow/iw/sar/2)*2,setsar=sar=1"
+	    CUR_OPT="none"
+	    ;;
+	-y)
+	    OVWR_OUT="-y"
 	    CUR_OPT="none"
 	    ;;
 	-*)
@@ -564,7 +580,7 @@ if [ "z$TMP_PASS" = "z" ] ; then
 	-ac 2 \
 	-af "${AFPRE_OTHER}asyncts=min_delta=$ASD,aresample=${ARATE}och=2:osf=fltp:ocl=downmix${AF_VOL}${AF_OTHER}" \
 	$META_ALANG \
-	-y "$OUT_FILE"
+	$OVWR_OUT "$OUT_FILE"
     ffmpeg \
 	-i "$IN_FILE" \
 	$OP \
@@ -578,7 +594,7 @@ if [ "z$TMP_PASS" = "z" ] ; then
 	-ac 2 \
 	-af "${AFPRE_OTHER}asyncts=min_delta=$ASD,aresample=${ARATE}och=2:osf=fltp:ocl=downmix${AF_VOL}${AF_OTHER}" \
 	$META_ALANG \
-	-y "$OUT_FILE" \
+	$OVWR_OUT "$OUT_FILE" \
 	</dev/null
 else
     echo ffmpeg \
@@ -596,7 +612,7 @@ else
 	$META_ALANG \
 	-pass 1 \
 	-passlogfile "$TMP_PASS" \
-	-y "$OUT_FILE"
+	$OVWR_OUT "$OUT_FILE"
     ffmpeg \
 	-i "$IN_FILE" \
 	$OP \
@@ -612,8 +628,9 @@ else
 	$META_ALANG \
 	-pass 1 \
 	-passlogfile "$TMP_PASS" \
-	-y "$OUT_FILE" \
+	$OVWR_OUT "$OUT_FILE" \
 	</dev/null
+    E="$?" ; if [ "z$E" != "z0" ] ; then die "$E" ; fi
     echo ffmpeg \
 	-i "$IN_FILE" \
 	$OP \
