@@ -123,179 +123,252 @@ ARG_CNT=0	; # arguments counter
 CUR_OPT="none"	; # current option
 A_CNT=0		; # args count
 OP_CNT=0	; # other params count
+# in/out/tail argument groups:
+GRPC=0		; # argument groups counter
+ARGC=0		; # group arguments counter
+INC=0		; # input groups counter
+OUTC=0		; # output groups counter
+TGRPN=""	; # tail group number
 
-while [ 0 -lt $# ] ; do
-    A="$1"
-    A_CNT="`expr 1 + "$A_CNT"`"
-    eval "A_$A_CNT=\"\$A\""
-    shift
-    case "$CUR_OPT" in
-	-ac)
-	    AC="$A"
-	    CUR_OPT="none"
+incr() {
+    varname="$1"
+    if ! expr "z$varname" : 'z[A-Za-z_][A-Za-z_0-9]*$' >/dev/null ;
+    then
+	die "invalid variable name - $varname"
+    fi
+    eval "varvalue=\"\$$varname\""
+    varvalue="`expr 1 + "$varvalue"`"
+    eval "$varname=\"\$varvalue\""
+}
+
+next_grp() {
+    typ="$1"
+    eval "G${GRPC}TYP=\"\$typ\""
+    eval "G${GRPC}ARGC=\"\$ARGC\""
+    incr GRPC
+    ARGC=0
+}
+
+add_in_file() {
+    fname="$1"
+    bname="${fname##*/}"
+    dir="${fname%/*}"
+    if [ "z$dir" = "z$fname" ] ; then
+	dir="."
+    fi
+    dir="$dir/"
+    if ! [ -e "$fname" ] ; then
+	die "$fname doesn't exist"
+    fi
+    if ! [ -f "$fname" ] && ! [ -l "$fname" ] ; then
+	die "$fname isn't a file or symlink"
+    fi
+    if ! [ -d "$dir" ] ; then
+	die "$dir isn't a dir"
+    fi
+    eval "IN${INC}GRP=\"\$GRPC\""
+    eval "IN${INC}=\"\$fname\""
+    eval "IN${INC}BNAME=\"\$bname\""
+    eval "IN${INC}DIR=\"\$dir\""
+    next_grp "in"
+    incr INC
+    TGRPN=""
+}
+
+add_out_file() {
+    case "$1" in
+	*/)
+	    if [ "z$INC" = "z0" ] ; then
+		die "at least one input file name required"\
+		    "to generate output file name in $1"
+	    fi
+	    last_in="`expr \( "$INC" \) - 1`"
+	    eval "in_bname=\"\$IN{$last_in}BNAME\""
+	    # XXX: assume matroska (.mkv) format for the output file:
+	    fname="$1${in_bname%.*}.mkv"
 	    ;;
-	-af)
-	    AF_OTHER="$AF_OTHER,$A"
-	    CUR_OPT="none"
-	    ;;
-	-afpre)
-	    AFPRE_OTHER="$AFPRE_OTHER$A,"
-	    CUR_OPT="none"
-	    ;;
-	-aid)
-	    case "$A" in
-		*:a:*|*:\#*:*|none) AID="$A" ;;
-		*:*:*) die "invalid -aid $A" ;;
-		\#*:*) AID="0:$A" ;;
-		*) AID="0:a:$A" ;;
-	    esac
-	    CUR_OPT="none"
-	    ;;
-	-alang)
-	    ALANG="$A"
-	    META_ALANG="-metadata:s:a language=$A"
-	    CUR_OPT="none"
-	    ;;
-	-arate)
-	    ARATE="$A:"
-	    CUR_OPT="none"
-	    ;;
-	-asd)
-	    ASD="$A"
-	    CUR_OPT="none"
-	    ;;
-	-h)
-	    VF_SCALE=",scale=h=$A:w=ceil(iw*oh/ih/sar/2)*2,setsar=sar=1"
-	    CUR_OPT="none"
-	    ;;
-	-n)
-	    OVWR_OUT="-n"
-	    CUR_OPT="none"
-	    ;;
-	-sid)
-	    SID="$A"
-	    CUR_OPT="none"
-	    ;;
-	-subcp)
-	    SUBCP="$A"
-	    CUR_OPT="none"
-	    ;;
-	-subss)
-	    SUBSS="$A"
-	    CUR_OPT="none"
-	    ;;
-	-tvol)
-	    THRESH_VOL="$A"
-	    CUR_OPT="none"
-	    ;;
-	-vf)
-	    VF_OTHER="$VF_OTHER,$A"
-	    CUR_OPT="none"
-	    ;;
-	-vfpre)
-	    VFPRE_OTHER="$VFPRE_OTHER,$A"
-	    CUR_OPT="none"
-	    ;;
-	-vid)
-	    case "$A" in
-		*:v:*|*:\#*:*|none) VID="$A" ;;
-		*:*:*) die "invalid -vid $A" ;;
-		\#*:*) VID="0:$A" ;;
-		*) VID="0:v:$A" ;;
-	    esac
-	    CUR_OPT="none"
-	    ;;
-	-vol)
-	    ADD_VOL="$A"
-	    CUR_OPT="none"
-	    ;;
-	-w)
-	    VF_SCALE=",scale=w=$A:h=ceil(ih*ow/iw/sar/2)*2,setsar=sar=1"
-	    CUR_OPT="none"
-	    ;;
-	-y)
-	    OVWR_OUT="-y"
-	    CUR_OPT="none"
-	    ;;
-	-*)
-	    case "$CUR_OPT" in
-		-b:v)
-		    # use 2pass encoding when desired
-		    # bitrate is known
-		    TMP_PASS="${TMPF}.pass"
-		    ;;
-		-crf)
-		    # don't use 2pass encoding with -crf
-		    TMP_PASS=""
-		    ;;
-	    esac
-	    OP_CNT="`expr 1 + "$OP_CNT"`"
-	    eval "OP_$OP_CNT=\"\$CUR_OPT\""
-	    OP_CNT="`expr 1 + "$OP_CNT"`"
-	    eval "OP_$OP_CNT=\"\$A\""
-	    CUR_OPT="none"
-	    ;;
-	none)
-	    case "$A" in
-		-*)
-		    CUR_OPT="$A"
-		    ;;
-		*)
-		    CUR_OPT="none"
-		    case $ARG_CNT in
-			0)
-			    IN_FILE="$A"
-			    IN_FILE_BNAME="${IN_FILE##*/}"
-			    IN_FILE_EXT="${IN_FILE_BNAME##*.}"
-			    IN_DIR="${IN_FILE%/*}"
-			    if [ "z$IN_DIR" = "z$IN_FILE" ] ; then
-				IN_DIR="."
-			    fi
-			    if ! [ -e "$IN_FILE" ] ; then
-				die "$IN_FILE doesn't exist"
-			    fi
-			    if ! [ -f "$IN_FILE" ] ; then
-				die "$IN_FILE isn't a file"
-			    fi
-			    if ! [ -d "$IN_DIR" ] ; then
-				die "$IN_DIR isn't a dir"
-			    fi
-			    ARG_CNT="1"
-			    ;;
-			1)
-			    case "$A" in
-				*/)
-				    OUT_FILE="$A${IN_FILE_BNAME%.*}.mkv"
-				    ;;
-				*)
-				    OUT_FILE="$A"
-				    ;;
-			    esac
-			    OUT_FILE_BNAME="${OUT_FILE##*/}"
-			    OUT_DIR="${OUT_FILE%/*}"
-			    if [ "z$OUT_DIR" = "z$OUT_FILE" ] ; then
-				OUT_DIR="."
-			    fi
-			    if ! [ -d "$OUT_DIR" ] ; then
-				die "$OUT_DIR isn't a dir"
-			    fi
-			    ARG_CNT="2"
-			    ;;
-			*)
-			    usage "$0"
-			    ;;
-		    esac
-		    ;;
-	    esac
-	    ;;
+	*)  fname="$1" ;;
     esac
+    dir="${fname%/*}"
+    if [ "z$dir" = "z$fname" ] ; then
+	dir="."
+    fi
+    dir="$dir/"
+    if ! [ -d "$dir" ] ; then
+	die "$dir isn't a dir"
+    fi
+    eval "OUT${OUTC}GRP=\"\$GRPC\""
+    eval "OUT${OUTC}=\"\$fname\""
+    next_grp "out"
+    incr OUTC
+    TGRPN=""
+}
+
+parse_args() {
+    while [ 0 -lt $# ] ; do
+	A="$1"
+	A_CNT="`expr 1 + "$A_CNT"`"
+	eval "A_$A_CNT=\"\$A\""
+	eval "G${GRPC}A${ARGC}=\"\$A\""
+	incr ARGC
+	eval "G${GRPC}ARGC=\"\$ARGC\""
+	shift
+	case "$CUR_OPT" in
+	    -ac)
+		AC="$A"
+		CUR_OPT="none"
+		;;
+	    -af)
+		AF_OTHER="$AF_OTHER,$A"
+		CUR_OPT="none"
+		;;
+	    -afpre)
+		AFPRE_OTHER="$AFPRE_OTHER$A,"
+		CUR_OPT="none"
+		;;
+	    -aid)
+		case "$A" in
+		    *:a:*|*:\#*:*|none) AID="$A" ;;
+		    *:*:*) die "invalid -aid $A" ;;
+		    \#*:*) AID="0:$A" ;;
+		    *) AID="0:a:$A" ;;
+		esac
+		CUR_OPT="none"
+		;;
+	    -alang)
+		ALANG="$A"
+		META_ALANG="-metadata:s:a language=$A"
+		CUR_OPT="none"
+		;;
+	    -arate)
+		ARATE="$A:"
+		CUR_OPT="none"
+		;;
+	    -asd)
+		ASD="$A"
+		CUR_OPT="none"
+		;;
+	    -h)
+		VF_SCALE=",scale=h=$A:w=ceil(iw*oh/ih/sar/2)*2,setsar=sar=1"
+		CUR_OPT="none"
+		;;
+	    -n)
+		OVWR_OUT="-n"
+		CUR_OPT="none"
+		;;
+	    -sid)
+		SID="$A"
+		CUR_OPT="none"
+		;;
+	    -subcp)
+		SUBCP="$A"
+		CUR_OPT="none"
+		;;
+	    -subss)
+		SUBSS="$A"
+		CUR_OPT="none"
+		;;
+	    -tvol)
+		THRESH_VOL="$A"
+		CUR_OPT="none"
+		;;
+	    -vf)
+		VF_OTHER="$VF_OTHER,$A"
+		CUR_OPT="none"
+		;;
+	    -vfpre)
+		VFPRE_OTHER="$VFPRE_OTHER,$A"
+		CUR_OPT="none"
+		;;
+	    -vid)
+		case "$A" in
+		    *:v:*|*:\#*:*|none) VID="$A" ;;
+		    *:*:*) die "invalid -vid $A" ;;
+		    \#*:*) VID="0:$A" ;;
+		    *) VID="0:v:$A" ;;
+		esac
+		CUR_OPT="none"
+		;;
+	    -vol)
+		ADD_VOL="$A"
+		CUR_OPT="none"
+		;;
+	    -w)
+		VF_SCALE=",scale=w=$A:h=ceil(ih*ow/iw/sar/2)*2,setsar=sar=1"
+		CUR_OPT="none"
+		;;
+	    -y)
+		OVWR_OUT="-y"
+		CUR_OPT="none"
+		;;
+	    -*)
+		case "$CUR_OPT" in
+		    -b:v)
+			# use 2pass encoding when desired
+			# bitrate is known
+			TMP_PASS="${TMPF}.pass"
+			;;
+		    -crf)
+			# don't use 2pass encoding with -crf
+			TMP_PASS=""
+			;;
+		    -i) add_in_file "$A" ;;
+		esac
+		OP_CNT="`expr 1 + "$OP_CNT"`"
+		eval "OP_$OP_CNT=\"\$CUR_OPT\""
+		OP_CNT="`expr 1 + "$OP_CNT"`"
+		eval "OP_$OP_CNT=\"\$A\""
+		CUR_OPT="none"
+		;;
+	    none)
+		case "$A" in
+		    -*)
+			CUR_OPT="$A"
+			;;
+		    *)
+			CUR_OPT="none"
+			case $ARG_CNT in
+			    0)
+				add_in_file "$A"
+				ARG_CNT="1"
+				;;
+			    1)
+				add_out_file "$A"
+				ARG_CNT="2"
+				;;
+			    *)
+				usage "$0"
+				;;
+			esac
+			;;
+		esac
+		;;
+	esac
+    done
+    if [ "z$ARGC" != "z0" ] ; then
+	TGRPN="$GRPC"
+	next_grp "tail"
+    fi
+    [ "z$ARG_CNT" = "z2" ] || usage "$0"
+}
+
+parse_args "$@"
+i=0
+while [ "$i" -lt "$GRPC" ] ; do
+    eval "ARGC=\"\$G${i}ARGC\""
+    j=0
+    while [ "$j" -lt "$ARGC" ] ; do
+	eval "A=\"\$G${i}A$j\""
+	# echo "G${i}A$j: $A"
+	incr j
+    done
+    incr i
 done
-[ "z$ARG_CNT" = "z2" ] || usage "$0"
 
 # Detect audio stream ID:
 if [ "z$AID" = "z" ] && [ "z$ALANG" != "z" ] ; then
-    echo ffmpeg -i "$IN_FILE"
-    ffmpeg -i "$IN_FILE" >"$TMP_OUT" 2>&1
+    echo ffmpeg -i "$IN0"
+    ffmpeg -i "$IN0" >"$TMP_OUT" 2>&1
     NAUD=0
     DEF_AID=""
     while read L ; do
@@ -334,11 +407,11 @@ if [ "z$AID" = "z" ] ; then AID="0:a:0" ; fi
 # Detect max volume and raise it if THRESH_VOL is set:
 if [ "z$ADD_VOL" = "z" ] && [ "z$THRESH_VOL" != "z" ] \
 	&& [ "z$THRESH_VOL" != "znone" ] ; then
-    echo ffmpeg -i "$IN_FILE" -map_metadata -1 -map_chapters -1 \
+    echo ffmpeg -i "$IN0" -map_metadata -1 -map_chapters -1 \
 	-sn -vn -map "$AID" -c:a "$AC" -af \
 	"${AFPRE_OTHER}asyncts=min_delta=$ASD,aresample=${ARATE}och=2:osf=fltp:ocl=downmix,volumedetect$AF_OTHER" \
 	-f matroska -y /dev/null
-    ffmpeg -i "$IN_FILE" -map_metadata -1 -map_chapters -1 \
+    ffmpeg -i "$IN0" -map_metadata -1 -map_chapters -1 \
        	-sn -vn -map "$AID" -c:a "$AC" -af \
        	"${AFPRE_OTHER}asyncts=min_delta=$ASD,aresample=${ARATE}och=2:osf=fltp:ocl=downmix,volumedetect$AF_OTHER" \
 	-f matroska -y /dev/null 2>&1 | tee "$TMP_OUT"
@@ -371,8 +444,8 @@ fi
 # Detect subtitles stream ID and filename:
 if [ "z$SID" != "znone" ] ; then
     if ! [ -f "$TMP_OUT" ] ; then
-	echo ffmpeg -i "$IN_FILE"
-	ffmpeg -i "$IN_FILE" >"$TMP_OUT" 2>&1
+	echo ffmpeg -i "$IN0"
+	ffmpeg -i "$IN0" >"$TMP_OUT" 2>&1
     fi
     NSUB=0
     DEF_SID=""
@@ -389,7 +462,7 @@ if [ "z$SID" != "znone" ] ; then
 		# store type of int subs in SUBSxx variable:
        		eval "SUBS$NSUB=\$L"
        		eval "SUBSSTOR$NSUB=int"
-		echo "sid#$NSUB: $IN_FILE, $L"
+		echo "sid#$NSUB: $IN0, $L"
 		NSUB="`expr 1 + "$NSUB"`"
 		;;
 	esac
@@ -399,7 +472,7 @@ if [ "z$SID" != "znone" ] ; then
     # expanded before subshell is forked to execute the command:
     IN_FIND_NAME="`perl -wse \
 	'$ARGV[0] =~ s/([]*?[])/\\\\$1/g; print $ARGV[0]' \
-	-- "${IN_FILE_BNAME%.*}"`"
+	-- "${IN0BNAME%.*}"`"
     # Look for .ass and .srt files:
     find "$IN_DIR" -name "$IN_FIND_NAME*.ass" \
 	-o -name "$IN_FIND_NAME*.ASS" \
@@ -429,7 +502,7 @@ if [ "z$SID" != "znone" ] ; then
 				  # depending on $sid
 	eval "sstor=\"\$SUBSSTOR$sid\""
 	if [ "z$sstor" = "zint" ] ; then
-	    echo "selecting $sstor sid#$sid: $IN_FILE, $s"
+	    echo "selecting $sstor sid#$sid: $IN0, $s"
 	    case $s in
 		*Stream\ *:\ Subtitle:\ subrip*)
 		    SUBS_FILTER="subtitles"
@@ -442,11 +515,11 @@ if [ "z$SID" != "znone" ] ; then
 		*)  die "unsupported sid#$sid: $s" ;;
 	    esac
 	    # extract subtitles to tmp file:
-	    echo ffmpeg -i "$IN_FILE" \
+	    echo ffmpeg -i "$IN0" \
 		-map_metadata -1 -map_chapters -1 \
 		-an -vn -map "0:s:$sid" -c:s copy \
 		-y "$TMP_SUBS"
-	    ffmpeg -i "$IN_FILE" \
+	    ffmpeg -i "$IN0" \
 		-map_metadata -1 -map_chapters -1 \
 		-an -vn -map "0:s:$sid" -c:s copy \
 		-y "$TMP_SUBS" 2>&1 | tee "$TMP_OUT"
@@ -568,7 +641,7 @@ while [ "$i" -le "$OP_CNT" ] ; do
 done
 if [ "z$TMP_PASS" = "z" ] ; then
     echo ffmpeg \
-	-i "$IN_FILE" \
+	-i "$IN0" \
 	$OP \
 	-map_metadata -1 \
 	-map_chapters -1 \
@@ -580,9 +653,9 @@ if [ "z$TMP_PASS" = "z" ] ; then
 	-ac 2 \
 	-af "${AFPRE_OTHER}asyncts=min_delta=$ASD,aresample=${ARATE}och=2:osf=fltp:ocl=downmix${AF_VOL}${AF_OTHER}" \
 	$META_ALANG \
-	$OVWR_OUT "$OUT_FILE"
+	$OVWR_OUT "$OUT0"
     ffmpeg \
-	-i "$IN_FILE" \
+	-i "$IN0" \
 	$OP \
 	-map_metadata -1 \
 	-map_chapters -1 \
@@ -594,11 +667,11 @@ if [ "z$TMP_PASS" = "z" ] ; then
 	-ac 2 \
 	-af "${AFPRE_OTHER}asyncts=min_delta=$ASD,aresample=${ARATE}och=2:osf=fltp:ocl=downmix${AF_VOL}${AF_OTHER}" \
 	$META_ALANG \
-	$OVWR_OUT "$OUT_FILE" \
+	$OVWR_OUT "$OUT0" \
 	</dev/null
 else
     echo ffmpeg \
-	-i "$IN_FILE" \
+	-i "$IN0" \
 	$OP \
 	-map_metadata -1 \
 	-map_chapters -1 \
@@ -612,9 +685,9 @@ else
 	$META_ALANG \
 	-pass 1 \
 	-passlogfile "$TMP_PASS" \
-	$OVWR_OUT "$OUT_FILE"
+	$OVWR_OUT "$OUT0"
     ffmpeg \
-	-i "$IN_FILE" \
+	-i "$IN0" \
 	$OP \
 	-map_metadata -1 \
 	-map_chapters -1 \
@@ -628,11 +701,11 @@ else
 	$META_ALANG \
 	-pass 1 \
 	-passlogfile "$TMP_PASS" \
-	$OVWR_OUT "$OUT_FILE" \
+	$OVWR_OUT "$OUT0" \
 	</dev/null
     E="$?" ; if [ "z$E" != "z0" ] ; then die "$E" ; fi
     echo ffmpeg \
-	-i "$IN_FILE" \
+	-i "$IN0" \
 	$OP \
 	-map_metadata -1 \
 	-map_chapters -1 \
@@ -646,9 +719,9 @@ else
 	$META_ALANG \
 	-pass 2 \
 	-passlogfile "$TMP_PASS" \
-	-y "$OUT_FILE"
+	-y "$OUT0"
     ffmpeg \
-	-i "$IN_FILE" \
+	-i "$IN0" \
 	$OP \
 	-map_metadata -1 \
 	-map_chapters -1 \
@@ -662,7 +735,7 @@ else
 	$META_ALANG \
 	-pass 2 \
 	-passlogfile "$TMP_PASS" \
-	-y "$OUT_FILE" \
+	-y "$OUT0" \
 	</dev/null
 fi
 
