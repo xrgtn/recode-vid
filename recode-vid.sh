@@ -400,7 +400,7 @@ if [ "z$AID" = "z" ] ; then AID="0:a:0" ; fi
 # Detect max volume and raise it if THRESH_VOL is set:
 if [ "z$ADD_VOL" = "z" ] && [ "z$THRESH_VOL" != "z" ] \
 	&& [ "z$THRESH_VOL" != "znone" ] ; then
-    ffmpeg="ffmpeg"
+    ffmpeg="ffmpeg -hide_banner"
     i=0
     while [ "$i" -lt "$INC" ] ; do
 	ffmpeg="$ffmpeg -i \"\$IN$i\""
