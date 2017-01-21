@@ -211,7 +211,6 @@ parse_args() {
 	eval "A_$A_CNT=\"\$A\""
 	eval "G${GRPC}A${ARGC}=\"\$A\""
 	incr ARGC
-	eval "G${GRPC}ARGC=\"\$ARGC\""
 	shift
 	case "$CUR_OPT" in
 	    -ac)
