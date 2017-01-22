@@ -113,7 +113,6 @@ AFPRE_OTHER=""	; # other audio filters to prepend
 OVWR_OUT="-y"	; # "overwrite output file" option
 ARG_CNT=0	; # arguments counter
 CUR_OPT="none"	; # current option
-A_CNT=0		; # args count
 OP_CNT=0	; # other params count
 # in/out/tail argument groups:
 GRPC=0		; # argument groups counter
@@ -199,8 +198,6 @@ add_out_file() {
 parse_args() {
     while [ 0 -lt $# ] ; do
 	A="$1"
-	A_CNT="`expr 1 + "$A_CNT"`"
-	eval "A_$A_CNT=\"\$A\""
 	eval "G${GRPC}A${ARGC}=\"\$A\""
 	incr ARGC
 	shift
