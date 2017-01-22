@@ -113,7 +113,6 @@ AFPRE_OTHER=""	; # other audio filters to prepend
 OVWR_OUT="-y"	; # "overwrite output file" option
 ARG_CNT=0	; # arguments counter
 CUR_OPT="none"	; # current option
-OP_CNT=0	; # other params count
 # in/out/tail argument groups:
 GRPC=0		; # argument groups counter
 ARGC=0		; # group arguments counter
@@ -302,10 +301,6 @@ parse_args() {
 			;;
 		    -i) add_in_file "$A" ;;
 		esac
-		OP_CNT="`expr 1 + "$OP_CNT"`"
-		eval "OP_$OP_CNT=\"\$CUR_OPT\""
-		OP_CNT="`expr 1 + "$OP_CNT"`"
-		eval "OP_$OP_CNT=\"\$A\""
 		CUR_OPT="none"
 		;;
 	    none)
@@ -637,14 +632,6 @@ if [ "z$SID" != "znone" ] ; then
 fi
 
 rm -f "$TMP_OUT"
-
-OP=""	; # other params concat
-i=0
-while [ "$i" -le "$OP_CNT" ] ; do
-    i="`expr 1 + "$i"`"
-    eval "o=\"\$OP_$i\""
-    OP="$OP $o"
-done
 
 ffmpeg="ffmpeg -hide_banner"
 i=0
