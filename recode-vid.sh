@@ -194,6 +194,17 @@ add_out_file() {
     TGRPN=""
 }
 
+append_grp2cmd() {
+    agrp="$1"	; # arguments group number
+    acmd="$2"	; # name of cmdline variable
+    eval "agrpargc=\"\$G${agrp}ARGC\""
+    aj=0
+    while [ "$aj" -lt "$agrpargc" ] ; do
+	eval "$acmd=\"\$$acmd \\\"\$G${agrp}A$aj\\\"\""
+	incr aj
+    done
+}
+
 parse_args() {
     while [ 0 -lt $# ] ; do
 	A="$1"
@@ -642,12 +653,7 @@ ffmpeg="ffmpeg -hide_banner"
 i=0
 while [ "$i" -lt "$INC" ] ; do
     eval "g=\"\$IN${i}GRP\""
-    eval "ARGC=\"\$G${g}ARGC\""
-    j=0
-    while [ "$j" -lt "$ARGC" ] ; do
-	ffmpeg="$ffmpeg \"\$G${i}A$j\""
-	incr j
-    done
+    append_grp2cmd "$g" ffmpeg
     ffmpeg="$ffmpeg -i \"\$IN$i\""
     incr i
 done
