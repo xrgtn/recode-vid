@@ -415,7 +415,8 @@ if [ "z$ADD_VOL" = "z" ] && [ "z$THRESH_VOL" != "z" ] \
     ffmpeg="ffmpeg -hide_banner"
     i=0
     while [ "$i" -lt "$INC" ] ; do
-	ffmpeg="$ffmpeg -i \"\$IN$i\""
+	eval "g=\"\$IN${i}GRP\""
+	append_grp2cmd "$g" ffmpeg "full"
 	incr i
     done
     aresample="aresample=\${ARATE}och=2:osf=fltp:ocl=downmix"
@@ -426,6 +427,9 @@ if [ "z$ADD_VOL" = "z" ] && [ "z$THRESH_VOL" != "z" ] \
     ffmpeg="$ffmpeg -af \"\${AFPRE_OTHER}asyncts=min_delta=\$ASD"
     ffmpeg="$ffmpeg,aresample=\${ARATE}och=2:osf=fltp:ocl=downmix"
     ffmpeg="$ffmpeg,volumedetect\$AF_OTHER\" -f matroska -y /dev/null"
+    if [ "z$TGRPN" != "z" ] ; then
+	append_grp2cmd "$TGRPN" ffmpeg
+    fi
     echo "$ffmpeg"
     eval "echo $ffmpeg"
     eval "$ffmpeg $teelog"
