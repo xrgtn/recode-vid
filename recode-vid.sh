@@ -132,8 +132,7 @@ incr() {
 }
 
 next_grp() {
-    next_grp_typ="$1"
-    eval "G${GRPC}TYP=\"\$next_grp_typ\""
+    eval "G${GRPC}TYP=\"\$1\""
     eval "G${GRPC}ARGC=\"\$ARGC\""
     incr GRPC
     ARGC=0
