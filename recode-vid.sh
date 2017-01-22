@@ -645,104 +645,48 @@ while [ "$i" -le "$OP_CNT" ] ; do
     eval "o=\"\$OP_$i\""
     OP="$OP $o"
 done
+
+ffmpeg="ffmpeg -hide_banner"
+i=0
+while [ "$i" -lt "$INC" ] ; do
+    eval "g=\"\$IN${i}GRP\""
+    eval "ARGC=\"\$G${g}ARGC\""
+    j=0
+    while [ "$j" -lt "$ARGC" ] ; do
+	ffmpeg="$ffmpeg \"\$G${i}A$j\""
+	incr j
+    done
+    ffmpeg="$ffmpeg -i \"\$IN$i\""
+    incr i
+done
+ffmpeg="$ffmpeg -map_metadata -1"
+ffmpeg="$ffmpeg -map_chapters -1"
+ffmpeg="$ffmpeg -map \"\$VID\""
+ffmpeg="$ffmpeg -c:v libx264"
+ffmpeg="$ffmpeg -filter_complex \"null\${VFPRE_OTHER}"
+ffmpeg="$ffmpeg\${VF_SCALE}\${VF_SUBS}\${VF_OTHER}\""
+ffmpeg="$ffmpeg -map \"\$AID\""
+ffmpeg="$ffmpeg -c:a \"\$AC\""
+ffmpeg="$ffmpeg -ac 2"
+ffmpeg="$ffmpeg -af \"\${AFPRE_OTHER}asyncts=min_delta=\$ASD"
+ffmpeg="$ffmpeg,aresample=\${ARATE}och=2:osf=fltp:ocl=downmix"
+ffmpeg="$ffmpeg\${AF_VOL}\${AF_OTHER}\""
+ffmpeg="$ffmpeg $META_ALANG"
+
 if [ "z$TMP_PASS" = "z" ] ; then
-    echo ffmpeg \
-	-i "$IN0" \
-	$OP \
-	-map_metadata -1 \
-	-map_chapters -1 \
-	-map "$VID" \
-	-c:v libx264 \
-	-filter_complex "null${VFPRE_OTHER}${VF_SCALE}${VF_SUBS}${VF_OTHER}" \
-	-map "$AID" \
-	-c:a "$AC" \
-	-ac 2 \
-	-af "${AFPRE_OTHER}asyncts=min_delta=$ASD,aresample=${ARATE}och=2:osf=fltp:ocl=downmix${AF_VOL}${AF_OTHER}" \
-	$META_ALANG \
-	$OVWR_OUT "$OUT0"
-    ffmpeg \
-	-i "$IN0" \
-	$OP \
-	-map_metadata -1 \
-	-map_chapters -1 \
-	-map "$VID" \
-	-c:v libx264 \
-	-filter_complex "null${VFPRE_OTHER}${VF_SCALE}${VF_SUBS}${VF_OTHER}" \
-	-map "$AID" \
-	-c:a "$AC" \
-	-ac 2 \
-	-af "${AFPRE_OTHER}asyncts=min_delta=$ASD,aresample=${ARATE}och=2:osf=fltp:ocl=downmix${AF_VOL}${AF_OTHER}" \
-	$META_ALANG \
-	$OVWR_OUT "$OUT0" \
-	</dev/null
+    ffmpeg="$ffmpeg $OVWR_OUT \"\$OUT0\""
+    eval "echo $ffmpeg"
+    eval "$ffmpeg </dev/null"
 else
-    echo ffmpeg \
-	-i "$IN0" \
-	$OP \
-	-map_metadata -1 \
-	-map_chapters -1 \
-	-map "$VID" \
-	-c:v libx264 \
-	-filter_complex "null${VFPRE_OTHER}${VF_SCALE}${VF_SUBS}${VF_OTHER}" \
-	-map "$AID" \
-	-c:a "$AC" \
-	-ac 2 \
-	-af "${AFPRE_OTHER}asyncts=min_delta=$ASD,aresample=${ARATE}och=2:osf=fltp:ocl=downmix${AF_VOL}${AF_OTHER}" \
-	$META_ALANG \
-	-pass 1 \
-	-passlogfile "$TMP_PASS" \
-	$OVWR_OUT "$OUT0"
-    ffmpeg \
-	-i "$IN0" \
-	$OP \
-	-map_metadata -1 \
-	-map_chapters -1 \
-	-map "$VID" \
-	-c:v libx264 \
-	-filter_complex "null${VFPRE_OTHER}${VF_SCALE}${VF_SUBS}${VF_OTHER}" \
-	-map "$AID" \
-	-c:a "$AC" \
-	-ac 2 \
-	-af "${AFPRE_OTHER}asyncts=min_delta=$ASD,aresample=${ARATE}och=2:osf=fltp:ocl=downmix${AF_VOL}${AF_OTHER}" \
-	$META_ALANG \
-	-pass 1 \
-	-passlogfile "$TMP_PASS" \
-	$OVWR_OUT "$OUT0" \
-	</dev/null
+    ffmpeg1="$ffmpeg -pass 1 -passlogfile \"\$TMP_PASS\""
+    ffmpeg1="$ffmpeg1 $OVWR_OUT \"\$OUT0\""
+    ffmpeg2="$ffmpeg -pass 2 -passlogfile \"\$TMP_PASS\""
+    ffmpeg2="$ffmpeg1 -y \"\$OUT0\""
+    eval "echo $ffmpeg1"
+    eval "$ffmpeg1 </dev/null"
     E="$?" ; if [ "z$E" != "z0" ] ; then die "$E" ; fi
-    echo ffmpeg \
-	-i "$IN0" \
-	$OP \
-	-map_metadata -1 \
-	-map_chapters -1 \
-	-map "$VID" \
-	-c:v libx264 \
-	-filter_complex "null${VFPRE_OTHER}${VF_SCALE}${VF_SUBS}${VF_OTHER}" \
-	-map "$AID" \
-	-c:a "$AC" \
-	-ac 2 \
-	-af "${AFPRE_OTHER}asyncts=min_delta=$ASD,aresample=${ARATE}och=2:osf=fltp:ocl=downmix${AF_VOL}${AF_OTHER}" \
-	$META_ALANG \
-	-pass 2 \
-	-passlogfile "$TMP_PASS" \
-	-y "$OUT0"
-    ffmpeg \
-	-i "$IN0" \
-	$OP \
-	-map_metadata -1 \
-	-map_chapters -1 \
-	-map "$VID" \
-	-c:v libx264 \
-	-filter_complex "null${VFPRE_OTHER}${VF_SCALE}${VF_SUBS}${VF_OTHER}" \
-	-map "$AID" \
-	-c:a "$AC" \
-	-ac 2 \
-	-af "${AFPRE_OTHER}asyncts=min_delta=$ASD,aresample=${ARATE}och=2:osf=fltp:ocl=downmix${AF_VOL}${AF_OTHER}" \
-	$META_ALANG \
-	-pass 2 \
-	-passlogfile "$TMP_PASS" \
-	-y "$OUT0" \
-	</dev/null
+    eval "echo $ffmpeg2"
+    eval "$ffmpeg2 </dev/null"
 fi
 
 if [ "z$TMP_PASS" != "z" ] ; then
