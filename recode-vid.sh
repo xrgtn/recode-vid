@@ -375,8 +375,14 @@ if [ "z$AID" = "z" ] && [ "z$ALANG" != "z" ] ; then
     while read L ; do
 	# Stream #0:1(rus): Audio: aac (HE-AAC), 44100 Hz, 5.1,
 	# fltp (default)
+	#
 	# Stream #0:1[0x1100]: Audio: pcm_bluray (HDMV / 0x564D4448),
 	# 48000 Hz, stereo, s16, 1536 kb/s
+	#
+	# Stream #0:1: Audio: mp3 (U[0][0][0] / 0x0055), 48000 Hz,
+	# stereo, s16p, 160 kb/s
+	# Metadata:
+	#   title           : Suzaku
 	case $L in
 	    *Stream\ *:\ Audio:\ *)
 		id="${L#*Stream #}"
