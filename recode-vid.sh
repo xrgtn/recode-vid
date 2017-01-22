@@ -190,6 +190,12 @@ add_out_file() {
 }
 
 append_grp2cmd() {
+    if ! expr "z$1" : 'z[0-9][0-9]*$' >/dev/null ; then
+	die "invalid group number - $1"
+    fi
+    if ! expr "z$2" : 'z[A-Za-z_][A-Za-z_0-9]*$' >/dev/null ; then
+	die "invalid variable name - $2"
+    fi
     eval "agrpargc=\"\$G${1}ARGC\""
     aj=0
     while [ "$aj" -lt "$agrpargc" ] ; do
