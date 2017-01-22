@@ -155,7 +155,7 @@ add_in_file() {
     eval "IN${INC}=\"\$fname\""
     eval "IN${INC}BNAME=\"\$bname\""
     eval "IN${INC}DIR=\"\$dir\""
-    next_grp "in"
+    next_grp "IN${INC}"
     incr INC
     TGRPN=""
 }
@@ -184,7 +184,7 @@ add_out_file() {
     fi
     eval "OUT${OUTC}GRP=\"\$GRPC\""
     eval "OUT${OUTC}=\"\$fname\""
-    next_grp "out"
+    next_grp "OUT${OUTC}"
     incr OUTC
     TGRPN=""
 }
@@ -199,9 +199,16 @@ append_grp2cmd() {
     eval "agrpargc=\"\$G${1}ARGC\""
     aj=0
     while [ "$aj" -lt "$agrpargc" ] ; do
-	eval "$2=\"\$$2 \\\"\$G${1}A$aj\\\"\""
+	eval "$2=\"\$$2 \\\"\\\$G${1}A$aj\\\"\""
 	incr aj
     done
+    if [ "z$3" = "zfull" ] ; then
+	eval "agrptyp=\"\$G${1}TYP\""
+	case "$agrptyp" in
+	    IN*)  eval "$2=\"\$$2 -i \\\"\\\$$agrptyp\\\"\"" ;;
+	    OUT*) eval "$2=\"\$$2 \\\"\\\$$agrptyp\\\"\"" ;;
+	esac
+    fi
 }
 
 parse_args() {
@@ -652,8 +659,7 @@ ffmpeg="ffmpeg -hide_banner"
 i=0
 while [ "$i" -lt "$INC" ] ; do
     eval "g=\"\$IN${i}GRP\""
-    append_grp2cmd "$g" ffmpeg
-    ffmpeg="$ffmpeg -i \"\$IN$i\""
+    append_grp2cmd "$g" ffmpeg "full"
     incr i
 done
 ffmpeg="$ffmpeg -map_metadata -1"
@@ -672,6 +678,7 @@ ffmpeg="$ffmpeg $META_ALANG"
 
 if [ "z$TMP_PASS" = "z" ] ; then
     ffmpeg="$ffmpeg $OVWR_OUT \"\$OUT0\""
+    echo "$ffmpeg"
     eval "echo $ffmpeg"
     eval "$ffmpeg </dev/null"
 else
@@ -679,9 +686,11 @@ else
     ffmpeg1="$ffmpeg1 $OVWR_OUT \"\$OUT0\""
     ffmpeg2="$ffmpeg -pass 2 -passlogfile \"\$TMP_PASS\""
     ffmpeg2="$ffmpeg1 -y \"\$OUT0\""
+    echo "$ffmpeg1"
     eval "echo $ffmpeg1"
     eval "$ffmpeg1 </dev/null"
     E="$?" ; if [ "z$E" != "z0" ] ; then die "$E" ; fi
+    echo "$ffmpeg2"
     eval "echo $ffmpeg2"
     eval "$ffmpeg2 </dev/null"
 fi
