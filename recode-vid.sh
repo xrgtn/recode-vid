@@ -358,17 +358,6 @@ parse_args() {
 }
 
 parse_args "$@"
-i=0
-while [ "$i" -lt "$GRPC" ] ; do
-    eval "ARGC=\"\$G${i}ARGC\""
-    j=0
-    while [ "$j" -lt "$ARGC" ] ; do
-	eval "A=\"\$G${i}A$j\""
-	# echo "G${i}A$j: $A"
-	incr j
-    done
-    incr i
-done
 
 # Detect audio stream ID:
 if [ "z$AID" = "z" ] && [ "z$ALANG" != "z" ] ; then
