@@ -685,7 +685,7 @@ else
     ffmpeg1="$ffmpeg -pass 1 -passlogfile \"\$TMP_PASS\""
     ffmpeg1="$ffmpeg1 $OVWR_OUT \"\$OUT0\""
     ffmpeg2="$ffmpeg -pass 2 -passlogfile \"\$TMP_PASS\""
-    ffmpeg2="$ffmpeg1 -y \"\$OUT0\""
+    ffmpeg2="$ffmpeg2 -y \"\$OUT0\""
     echo "$ffmpeg1"
     eval "echo $ffmpeg1"
     eval "$ffmpeg1 </dev/null"
