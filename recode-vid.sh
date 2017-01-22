@@ -678,6 +678,9 @@ ffmpeg="$ffmpeg $META_ALANG"
 
 if [ "z$TMP_PASS" = "z" ] ; then
     ffmpeg="$ffmpeg $OVWR_OUT \"\$OUT0\""
+    if [ "z$TGRPN" != "z" ] ; then
+	append_grp2cmd "$TGRPN" ffmpeg
+    fi
     echo "$ffmpeg"
     eval "echo $ffmpeg"
     eval "$ffmpeg </dev/null"
@@ -686,6 +689,10 @@ else
     ffmpeg1="$ffmpeg1 $OVWR_OUT \"\$OUT0\""
     ffmpeg2="$ffmpeg -pass 2 -passlogfile \"\$TMP_PASS\""
     ffmpeg2="$ffmpeg2 -y \"\$OUT0\""
+    if [ "z$TGRPN" != "z" ] ; then
+	append_grp2cmd "$TGRPN" ffmpeg1
+	append_grp2cmd "$TGRPN" ffmpeg2
+    fi
     echo "$ffmpeg1"
     eval "echo $ffmpeg1"
     eval "$ffmpeg1 </dev/null"
