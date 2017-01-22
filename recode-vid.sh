@@ -367,6 +367,7 @@ if [ "z$AID" = "z" ] && [ "z$ALANG" != "z" ] ; then
 	ffmpeg="$ffmpeg -i \"\$IN$i\""
 	incr i
     done
+    echo "$ffmpeg"
     eval "echo $ffmpeg"
     eval "$ffmpeg >\"\$TMP_OUT\" 2>&1"
     NAUD=0
@@ -425,6 +426,7 @@ if [ "z$ADD_VOL" = "z" ] && [ "z$THRESH_VOL" != "z" ] \
     ffmpeg="$ffmpeg -af \"\${AFPRE_OTHER}asyncts=min_delta=\$ASD"
     ffmpeg="$ffmpeg,aresample=\${ARATE}och=2:osf=fltp:ocl=downmix"
     ffmpeg="$ffmpeg,volumedetect\$AF_OTHER\" -f matroska -y /dev/null"
+    echo "$ffmpeg"
     eval "echo $ffmpeg"
     eval "$ffmpeg $teelog"
     MAX_VOL=""
