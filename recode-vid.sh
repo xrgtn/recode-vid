@@ -121,19 +121,19 @@ OUTC=0		; # output groups counter
 TGRPN=""	; # tail group number
 
 incr() {
-    varname="$1"
-    if ! expr "z$varname" : 'z[A-Za-z_][A-Za-z_0-9]*$' >/dev/null ;
+    incr_var="$1"
+    if ! expr "z$incr_var" : 'z[A-Za-z_][A-Za-z_0-9]*$' >/dev/null ;
     then
-	die "invalid variable name - $varname"
+	die "invalid variable name - $incr_var"
     fi
-    eval "varvalue=\"\$$varname\""
-    varvalue="`expr 1 + "$varvalue"`"
-    eval "$varname=\"\$varvalue\""
+    eval "incr_val=\"\$$incr_var\""
+    incr_val="`expr 1 + "$incr_val"`"
+    eval "$incr_var=\"\$incr_val\""
 }
 
 next_grp() {
-    typ="$1"
-    eval "G${GRPC}TYP=\"\$typ\""
+    next_grp_typ="$1"
+    eval "G${GRPC}TYP=\"\$next_grp_typ\""
     eval "G${GRPC}ARGC=\"\$ARGC\""
     incr GRPC
     ARGC=0
