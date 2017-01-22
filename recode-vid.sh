@@ -195,12 +195,10 @@ add_out_file() {
 }
 
 append_grp2cmd() {
-    agrp="$1"	; # arguments group number
-    acmd="$2"	; # name of cmdline variable
-    eval "agrpargc=\"\$G${agrp}ARGC\""
+    eval "agrpargc=\"\$G${1}ARGC\""
     aj=0
     while [ "$aj" -lt "$agrpargc" ] ; do
-	eval "$acmd=\"\$$acmd \\\"\$G${agrp}A$aj\\\"\""
+	eval "$2=\"\$$2 \\\"\$G${1}A$aj\\\"\""
 	incr aj
     done
 }
