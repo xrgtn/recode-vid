@@ -197,8 +197,6 @@ add_out_file() {
 parse_args() {
     while [ 0 -lt $# ] ; do
 	A="$1"
-	eval "G${GRPC}A${ARGC}=\"\$A\""
-	incr ARGC
 	shift
 	case "$CUR_OPT" in
 	    -ac)
@@ -299,7 +297,14 @@ parse_args() {
 			# don't use 2pass encoding with -crf
 			TMP_PASS=""
 			;;
+		esac
+		case "$CUR_OPT" in
 		    -i) add_in_file "$A" ;;
+		    *)  eval "G${GRPC}A${ARGC}=\"\$CUR_OPT\""
+			incr ARGC
+			eval "G${GRPC}A${ARGC}=\"\$A\""
+			incr ARGC
+			;;
 		esac
 		CUR_OPT="none"
 		;;
