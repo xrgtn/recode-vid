@@ -221,7 +221,7 @@ parse_stream_id() {
 	die "invalid variable name - $1"
     fi
     fre='\([0-9][0-9]*:\)\{0,1\}'		; # optional file id
-    hre='\([0-9][0-9]*\|0x[0-9a-fA-F]\{1,\}'	; # dec/hex
+    hre='\([0-9][0-9]*\|0x[0-9a-fA-F]\{1,\}\)'	; # dec/hex
     wre='[A-Za-z_][A-Za-z_0-9]*'		; # word
     if [ "z$A" = "znone" ] ; then
 	eval "$1=\"\$2\""
@@ -408,6 +408,41 @@ readw() {
     return "$readw_ret"
 }
 
+# Match stream vs selector:
+match() {
+    match="$2"
+    matchtype=':'
+    while [ "z$match" != "z" ] ; do
+	matchtail="${match#*[:!]}"
+	matchhead="${match%%[:!]*}"
+	if [ "z$matchhead" != "z" ] ; then
+	    if expr "z$matchhead" : 'z[0-9][0-9]*$' >/dev/null ; then
+		matchno="$matchhead"
+	    else
+		case "$1" in
+		    *"$matchhead"*) matchres=':';;
+		    *) matchres='!';;
+		esac
+		if [ "z$matchres" != "z$matchtype" ] ; then
+		    return 1
+		fi
+	    fi
+	fi
+	# set type of match for the next iteration:
+	if [ "z$matchhead" = "z${match%%!*}" ] ; then
+	    matchtype='!'
+	else
+	    matchtype=':'
+	fi
+	if [ "z$matchtail" = "z$match" ] ; then
+	    match=""
+	else
+	    match="$matchtail"
+	fi
+    done
+    return 0
+}
+
 # Detect video/audio/subtitles stream IDs:
 if ( [ "z$AID" = "z" ] && [ "z$AIDX" != "z" ] )\
 || [ "z$SID" != "znone" ] ; then
@@ -461,9 +496,9 @@ if ( [ "z$AID" = "z" ] && [ "z$AIDX" != "z" ] )\
 	case "$state" in
 	    Video|Audio|Subtitles)
 		desc="${L#    Stream #}"
-		id="${desc%%: $state: *}"
+		id0="${desc%%: $state: *}"
 		desc="${desc#*: $state: }"
-		id="${id%%(*}"
+		id="${id0%%(*}"
 		id="${id%%\[*}"
 		if ! expr "z$id" : 'z[0-9][0-9]*:[0-9][0-9]*$' \
 			>/dev/null ; then
@@ -475,21 +510,21 @@ if ( [ "z$AID" = "z" ] && [ "z$AIDX" != "z" ] )\
 	case "$state" in
 	    Video)
 		eval "VID$VIDC=\"\$id\""
-		eval "VID${VIDC}DESC=\"\$bname, stream#\$id, \$desc\""
+		eval "VID${VIDC}DESC=\"\$bname, stream#\$id0, \$desc\""
 		case "$desc" in *\ \(default\)) VIDDEF="$VIDC" ;; esac
 		state="VID${VIDC}DESC"
 		incr VIDC
 		;;
 	    Audio)
 		eval "AID$AIDC=\"\$id\""
-		eval "AID${AIDC}DESC=\"\$bname, stream#\$id, \$desc\""
+		eval "AID${AIDC}DESC=\"\$bname, stream#\$id0, \$desc\""
 		case "$desc" in *\ \(default\)) AIDDEF="$AIDC" ;; esac
 		state="AID${AIDC}DESC"
 		incr AIDC
 		;;
 	    Subtitles)
 		eval "SID$SIDC=\"\$id\""
-		eval "SID${SIDC}DESC=\"\$bname, stream#\$id, \$desc\""
+		eval "SID${SIDC}DESC=\"\$bname, stream#\$id0, \$desc\""
 		case "$desc" in *\ \(default\)) SIDDEF="$SIDC" ;; esac
 		state="SID${SIDC}DESC"
 		incr SIDC
@@ -497,14 +532,34 @@ if ( [ "z$AID" = "z" ] && [ "z$AIDX" != "z" ] )\
 	esac
     done <"$TMP_OUT"
     i=0
+    aidm=""	; # matching aid
+    aidmc=0	; # count of matching aids
+    while [ "$i" -lt "$AIDC" ] ; do
+	eval "desc=\"\$AID${i}DESC\""
+	if match "$desc" "$AIDX" ; then
+	    eval "aidm$aidmc=$i"
+	    incr aidmc
+	fi
+	incr i
+    done
+    if [ 0 -lt "$aidmc" ] ; then
+	if [ "z$matchno" = "z" ] ; then
+	    matchno=0
+	fi
+	if [ "$matchno" -lt 0 ] ; then
+	    matchno="`expr "$aidmc" + "$matchno"`"
+	fi
+	if [ 0 -le "$matchno" ] && [ "$matchno" -lt "$aidmc" ] ; then
+	    eval "aidm=\"\$aidm$matchno\""
+	fi
+    fi
+    i=0
     while [ "$i" -lt "$AIDC" ] ; do
 	eval "desc=\"\$AID${i}DESC\""
 	eval "id=\"\$AID$i\""
 	mark=""
-	if [ "z$AID" = "z" ] ; then
-	    case "$desc" in
-		$AIDX) AID="$id"; mark=" *";;
-	    esac
+	if [ "z$AID" = "z" ] && [ "z$aidm" = "z$i" ] ; then
+	    AID="$id"; mark=" *"
 	fi
 	echo "aid#$i: $desc$mark"
 	incr i
