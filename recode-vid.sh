@@ -7,7 +7,7 @@ usage() {
 	-ac	X	use audio codec X
 	-af	F	append audio filter F
 	-afpre	F	prepend audio filter F
-	-aid	N	select Nth audio stream
+	-aid	X	audio stream selector
 	-alang	L	set audio stream language L
 	-arate	R	set audio rate R
 	-asd	S	set asyncts min_delta to S
@@ -95,14 +95,14 @@ VF_SCALE=",scale=w=720:h=ceil(ih*ow/iw/sar/2)*2,setsar=sar=1"
 VF_OTHER=""	; # other video filters to append
 VFPRE_OTHER=""	; # other video filters to prepend
 # audio params:
-AID=""
+AID=""		; # audio stream id
+AIDX=""		; # audio stream selector expression
 AC="libvorbis"	; # audio codec
 ARATE=""
 ASD="0.3"	; # asyncts min_delta [0.3s]. You need to increase it
 		  # if you get messages like "[Parsed_asyncts_0 @
 		  # 0x1719be0] Non-monotonous timestamps, dropping
 		  # whole buffer." XXX
-ALANG=""	; # audio language (e.g. rus, jpn, eng)
 META_ALANG=""	; # output audio language tag
 ADD_VOL=""	; # additional audio volume
 THRESH_VOL="-0.5" ; # volume threshold for autoincrease
@@ -119,6 +119,10 @@ ARGC=0		; # group arguments counter
 INC=0		; # input groups counter
 OUTC=0		; # output groups counter
 TGRPN=""	; # tail group number
+# video/audio/subs streams:
+VIDC=0		; # video streams counter
+AIDC=0		; # audio streams counter
+SUBC=0		; # subtitles streams counter
 
 incr() {
     if ! expr "z$1" : 'z[A-Za-z_][A-Za-z_0-9]*$' >/dev/null ; then
@@ -211,6 +215,43 @@ append_grp2cmd() {
     fi
 }
 
+# parse_stream_id AID 0:1
+parse_stream_id() {
+    if ! expr "z$1" : 'z[A-Za-z_][A-Za-z_0-9]*$' >/dev/null ; then
+	die "invalid variable name - $1"
+    fi
+    fre='\([0-9][0-9]*:\)\{0,1\}'		; # optional file id
+    hre='\([0-9][0-9]*\|0x[0-9a-fA-F]\{1,\}'	; # dec/hex
+    wre='[A-Za-z_][A-Za-z_0-9]*'		; # word
+    if [ "z$A" = "znone" ] ; then
+	eval "$1=\"\$2\""
+    elif expr "z$A" : 'z[0-9][0-9]*:[0-9][0-9]*$' \
+    >/dev/null ; then
+	# 0:0
+	eval "$1=\"\$2\""
+    elif expr "z$A" : "z$fre[avs]\\(:[0-9][0-9]*\\)\\{0,1\\}\$" \
+    >/dev/null ; then
+	# 1:v:1, a:2, 2:s, a
+	eval "$1=\"\$2\""
+    elif expr "z$A" : "z$fre[p]\\(:[0-9][0-9]*\\)\\{1,2\\}\$" \
+    >/dev/null ; then
+	# 3:p:1:3, p:2:4, 4:p:3, p:4
+	eval "$1=\"\$2\""
+    elif expr "z$A" : "z$fre\\(#\\|i:\\):$hre\$" \
+    >/dev/null ; then
+	# #0x1100, i:0x1101, #231, i:232, 5:#0x1102, 6:i:0x1103,
+	# 7:#234, 8:i:235
+	eval "$1=\"\$2\""
+    elif expr "z$A" : "z$fre[m]:$wre\\(:.*\\)\\{0,1\\}\$" \
+    >/dev/null ; then
+	# m:LANGUAGE:jpn, 9:m:LANGUAGE:rus, m:ENCODER, 10:m:ENCODER
+	eval "$1=\"\$2\""
+    else
+	# 5:rus!default
+	eval "${1}X=\"\$2\""
+    fi
+}
+
 parse_args() {
     while [ 0 -lt $# ] ; do
 	A="$1"
@@ -229,16 +270,13 @@ parse_args() {
 		CUR_OPT="none"
 		;;
 	    -aid)
-		case "$A" in
-		    *:a:*|*:\#*:*|none) AID="$A" ;;
-		    *:*:*) die "invalid -aid $A" ;;
-		    \#*:*) AID="0:$A" ;;
-		    *) AID="0:a:$A" ;;
-		esac
+		parse_stream_id AID "$A"
 		CUR_OPT="none"
 		;;
 	    -alang)
-		ALANG="$A"
+		if [ "z$AID$AIDX" = "z" ] ; then
+		    AIDX="$A"	; # XXX: select AID by language
+		fi
 		META_ALANG="-metadata:s:a language=$A"
 		CUR_OPT="none"
 		;;
@@ -359,8 +397,20 @@ parse_args() {
 
 parse_args "$@"
 
-# Detect audio stream ID:
-if [ "z$AID" = "z" ] && [ "z$ALANG" != "z" ] ; then
+# Read data with leading whitespace:
+readw() {
+    readw_ifs0="$IFS"
+    IFS="
+"
+    read "$@"
+    readw_ret="$?"
+    IFS="$readw_ifs0"
+    return "$readw_ret"
+}
+
+# Detect video/audio/subtitles stream IDs:
+if ( [ "z$AID" = "z" ] && [ "z$AIDX" != "z" ] )\
+|| [ "z$SID" != "znone" ] ; then
     ffmpeg="ffmpeg -hide_banner"
     i=0
     while [ "$i" -lt "$INC" ] ; do
@@ -370,9 +420,8 @@ if [ "z$AID" = "z" ] && [ "z$ALANG" != "z" ] ; then
     echo "$ffmpeg"
     eval "echo $ffmpeg"
     eval "$ffmpeg >\"\$TMP_OUT\" 2>&1"
-    NAUD=0
-    DEF_AID=""
-    while read L ; do
+    state=""
+    while readw L ; do
 	# Stream #0:1(rus): Audio: aac (HE-AAC), 44100 Hz, 5.1,
 	# fltp (default)
 	#
@@ -383,34 +432,85 @@ if [ "z$AID" = "z" ] && [ "z$ALANG" != "z" ] ; then
 	# stereo, s16p, 160 kb/s
 	# Metadata:
 	#   title           : Suzaku
-	case $L in
-	    *Stream\ *:\ Audio:\ *)
-		id="${L#*Stream #}"
-		id="${id%%: Audio*}"
-		aid="${id%%(*}"
-		aid="${aid%%\[*}"
-		lng="${id#*(}"
-		lng="${lng%%)*}"
-		cdc="${L#*Stream*Audio: }"
-		case "$cdc" in
-		    *\(default\))
-			DEF_AID="$NAUD"
-			cdc="${cdc% (default)}"
-			;;
-		esac
-		sel=""
-		if [ "z$AID" = "z" ] \
-		    && [ "z$lng" = "z$ALANG" ] ; then
-		    AID="$aid"
-		    sel=" *"
+	case "$L" in
+	    \ \ \ \ Stream\ \#*:\ Video:\ *) state="Video";;
+	    \ \ \ \ Stream\ \#*:\ Audio:\ *) state="Audio";;
+	    \ \ \ \ Stream\ \#*:\ Subtitles:\ *) state="Subtitles";;
+	    \ \ \ \ Metadata:)
+		if ! expr "z$state" : 'z[AVS]ID[0-9][0-9]*DESC$' \
+		    >/dev/null ; then
+		    state="meta"
 		fi
-		echo "aid#$NAUD: #$aid($lng): $cdc$sel"
-		NAUD="`expr 1 + "$NAUD"`"
+		;;
+	    \ \ \ \ \ \ ????????????????:\ *)
+		if expr "z$state" : 'z[AVS]ID[0-9][0-9]*DESC$' \
+		    >/dev/null ; then
+		    key="${L%%:*}"
+		    val="${L#*: }"
+		    i=0
+		    while [ "$i" -lt 22 ] ; do
+			key="${key% }"
+			key="${key# }"
+			incr i
+		    done
+		    eval "$state=\"\$$state, \$key:\$val\""
+		fi
+		;;
+	    *)  state="";;
+	esac
+	case "$state" in
+	    Video|Audio|Subtitles)
+		desc="${L#    Stream #}"
+		id="${desc%%: $state: *}"
+		desc="${desc#*: $state: }"
+		id="${id%%(*}"
+		id="${id%%\[*}"
+		if ! expr "z$id" : 'z[0-9][0-9]*:[0-9][0-9]*$' \
+			>/dev/null ; then
+		    die "invalid stream id: $L"
+		fi
+		eval "bname=\"\$IN${id%:*}BNAME\""
+		;;
+	esac
+	case "$state" in
+	    Video)
+		eval "VID$VIDC=\"\$id\""
+		eval "VID${VIDC}DESC=\"\$bname, stream#\$id, \$desc\""
+		case "$desc" in *\ \(default\)) VIDDEF="$VIDC" ;; esac
+		state="VID${VIDC}DESC"
+		incr VIDC
+		;;
+	    Audio)
+		eval "AID$AIDC=\"\$id\""
+		eval "AID${AIDC}DESC=\"\$bname, stream#\$id, \$desc\""
+		case "$desc" in *\ \(default\)) AIDDEF="$AIDC" ;; esac
+		state="AID${AIDC}DESC"
+		incr AIDC
+		;;
+	    Subtitles)
+		eval "SID$SIDC=\"\$id\""
+		eval "SID${SIDC}DESC=\"\$bname, stream#\$id, \$desc\""
+		case "$desc" in *\ \(default\)) SIDDEF="$SIDC" ;; esac
+		state="SID${SIDC}DESC"
+		incr SIDC
 		;;
 	esac
     done <"$TMP_OUT"
+    i=0
+    while [ "$i" -lt "$AIDC" ] ; do
+	eval "desc=\"\$AID${i}DESC\""
+	eval "id=\"\$AID$i\""
+	mark=""
+	if [ "z$AID" = "z" ] ; then
+	    case "$desc" in
+		$AIDX) AID="$id"; mark=" *";;
+	    esac
+	fi
+	echo "aid#$i: $desc$mark"
+	incr i
+    done
     if [ "z$AID" = "z" ] ; then
-	die "($ALANG) audio stream not found"
+	die "\"$AIDX\" audio stream not found"
     fi
 fi
 if [ "z$AID" = "z" ] ; then AID="0:a:0" ; fi
