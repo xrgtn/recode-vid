@@ -103,7 +103,7 @@ ASD="0.3"	; # asyncts min_delta [0.3s]. You need to increase it
 		  # if you get messages like "[Parsed_asyncts_0 @
 		  # 0x1719be0] Non-monotonous timestamps, dropping
 		  # whole buffer." XXX
-META_ALANG=""	; # output audio language tag
+ALANG=""	; # output audio language tag
 ADD_VOL=""	; # additional audio volume
 THRESH_VOL="-0.5" ; # volume threshold for autoincrease
 AF_VOL=""	; # "volume" audio filter
@@ -274,10 +274,7 @@ parse_args() {
 		CUR_OPT="none"
 		;;
 	    -alang)
-		if [ "z$AID$AIDX" = "z" ] ; then
-		    AIDX="$A"	; # XXX: select AID by language
-		fi
-		META_ALANG="-metadata:s:a language=$A"
+		ALANG="$A"
 		CUR_OPT="none"
 		;;
 	    -arate)
@@ -444,7 +441,8 @@ match() {
 }
 
 # Detect video/audio/subtitles stream IDs:
-if ( [ "z$AID" = "z" ] && [ "z$AIDX" != "z" ] )\
+if ( [ "z$AID" = "z" ] && \
+    ( [ "z$AIDX" != "z" ] || [ "z$ALANG" != "z" ] ) ) \
 || [ "z$SID" != "znone" ] ; then
     ffmpeg="ffmpeg -hide_banner"
     i=0
@@ -531,12 +529,23 @@ if ( [ "z$AID" = "z" ] && [ "z$AIDX" != "z" ] )\
 		;;
 	esac
     done <"$TMP_OUT"
+fi
+
+# Find AID by AIDX/ALANG:
+if [ "z$AIDX" != "z" ] ; then
+    aidx="$AIDX"
+elif [ "z$ALANG" != "z" ] ; then
+    aidx="($ALANG)"
+else
+    aidx=""
+fi
+if [ "z$AID" = "z" ] && [ "z$aidx" != "z" ] ; then
     i=0
     aidm=""	; # matching aid
     aidmc=0	; # count of matching aids
     while [ "$i" -lt "$AIDC" ] ; do
 	eval "desc=\"\$AID${i}DESC\""
-	if match "$desc" "$AIDX" ; then
+	if match "$desc" "$aidx" ; then
 	    eval "aidm$aidmc=$i"
 	    incr aidmc
 	fi
@@ -565,7 +574,11 @@ if ( [ "z$AID" = "z" ] && [ "z$AIDX" != "z" ] )\
 	incr i
     done
     if [ "z$AID" = "z" ] ; then
-	die "\"$AIDX\" audio stream not found"
+	if [ "z$AIDX" != "z" ] || [ "$AIDC" -gt 1 ] ; then
+	    die "\"$aidx\" audio stream not found"
+	else
+	    echo "WARNING: \"$aidx\" audio stream not found" 1>&2
+	fi
     fi
 fi
 if [ "z$AID" = "z" ] ; then AID="0:a:0" ; fi
@@ -830,7 +843,9 @@ ffmpeg="$ffmpeg -ac 2"
 ffmpeg="$ffmpeg -af \"\${AFPRE_OTHER}asyncts=min_delta=\$ASD"
 ffmpeg="$ffmpeg,aresample=\${ARATE}och=2:osf=fltp:ocl=downmix"
 ffmpeg="$ffmpeg\${AF_VOL}\${AF_OTHER}\""
-ffmpeg="$ffmpeg $META_ALANG"
+if [ "z$ALANG" != "z" ] ; then
+    ffmpeg="$ffmpeg -metadata:s:a \"language=\$ALANG\""
+fi
 
 if [ "z$TMP_PASS" = "z" ] ; then
     append_grp2cmd "$OUT0GRP" ffmpeg
