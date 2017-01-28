@@ -14,6 +14,7 @@ usage() {
 	-h	H	scale to height H
 	-sid	N	select Nth subtitles stream
 	-subcp	X	assume codepage X for input subtitles
+	-subsd	D	external subtitles subdirectory
 	-subss	X	force subs style X (e.g. Fontstyle=40)
 	-tvol	T	set volume threshold at T dB
 	-vf	F	append video filter F
@@ -88,6 +89,7 @@ trap eint INT
 VID="0:v:0"
 SID=""
 SUBCP=""	; # subtitles codepage
+SUBSD=""	; # external subtitles subdirectory
 SUBSS=""	; # forced subtitles style
 SUBS_FILTER=""	; # "ass" "or subtitles"
 VF_SUBS=""	; # "subtitles"/"ass" video filter with params
@@ -299,6 +301,10 @@ parse_args() {
 		;;
 	    -subcp)
 		SUBCP="$A"
+		CUR_OPT="none"
+		;;
+	    -subsd)
+		SUBSD="$A"
 		CUR_OPT="none"
 		;;
 	    -subss)
@@ -666,7 +672,12 @@ if [ "z$SID" != "znone" ] ; then
 	'$ARGV[0] =~ s/([]*?[])/\\\\$1/g; print $ARGV[0]' \
 	-- "${IN0BNAME%.*}"`"
     # Look for .ass and .srt files:
-    find "$IN0DIR" -name "$IN_FIND_NAME*.ass" \
+    if [ "z$SUBSD" != "z" ] ; then
+	subsd="$SUBSD"
+    else
+	subsd="$IN0DIR"
+    fi
+    find "$subsd" -name "$IN_FIND_NAME*.ass" \
 	-o -name "$IN_FIND_NAME*.ASS" \
 	-o -name "$IN_FIND_NAME*.srt" \
 	-o -name "$IN_FIND_NAME*.SRT" | sort >"$TMP_OUT"
