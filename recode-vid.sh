@@ -398,6 +398,9 @@ parse_args() {
     [ "z$ARG_CNT" = "z2" ] || usage "$0"
 }
 
+if ! [ -x /usr/bin/bc ] ; then
+    die "/usr/bin/bc not found"
+fi
 parse_args "$@"
 
 # Read data with leading whitespace:
