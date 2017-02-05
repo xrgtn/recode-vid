@@ -14,9 +14,9 @@ usage() {
 	-h	H	scale to height H
 	-n		don't overwrite output file
 	-noass		don't use \"ass\" filter for subs
+	-sdir	D	external subtitles subdirectory
 	-sid	N	select Nth subtitles stream
 	-subcp	X	assume codepage X for input subtitles
-	-subsd	D	external subtitles subdirectory
 	-subss	X	force subs style X (e.g. Fontstyle=40)
 	-tvol	T	set volume threshold at T dB
 	-vf	F	append video filter F
@@ -302,7 +302,7 @@ parse_args() {
 		SUBCP="$A"
 		CUR_OPT="none"
 		;;
-	    -subsd)
+	    -subsd|-sdir)
 		SUBSD="$A"
 		CUR_OPT="none"
 		;;
