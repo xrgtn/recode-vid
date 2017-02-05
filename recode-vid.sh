@@ -12,6 +12,7 @@ usage() {
 	-arate	R	set audio rate R
 	-asd	S	set asyncts min_delta to S
 	-h	H	scale to height H
+	-n		don't overwrite output file
 	-noass		don't use \"ass\" filter for subs
 	-sid	N	select Nth subtitles stream
 	-subcp	X	assume codepage X for input subtitles
@@ -22,7 +23,8 @@ usage() {
 	-vfpre	F	prepend video filter F
 	-vid	N	select Nth video stream
 	-vol	A	increase volume by A dB
-	-w	W	scale to width W"
+	-w	W	scale to width W
+	-y		overwrite output file (default)"
     exit 1
 }
 
