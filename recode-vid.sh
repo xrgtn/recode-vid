@@ -449,7 +449,7 @@ match() {
     return 0
 }
 
-# Detect video/audio/subtitles stream IDs:
+# Detect internal video/audio/subtitles stream IDs:
 if ( [ "z$AID" = "z" ] && \
     ( [ "z$AIDX" != "z" ] || [ "z$ALANG" != "z" ] ) ) \
 || [ "z$SID" != "znone" ] ; then
@@ -517,21 +517,24 @@ if ( [ "z$AID" = "z" ] && \
 	case "$state" in
 	    Video)
 		eval "VID$VIDC=\"\$id\""
-		eval "VID${VIDC}DESC=\"\$bname, stream#\$id0, \$desc\""
+		eval "VID${VIDC}DESC=\"\$bname, int.stream#\$id0," \
+		    "\$desc\""
 		case "$desc" in *\ \(default\)) VIDDEF="$VIDC" ;; esac
 		state="VID${VIDC}DESC"
 		incr VIDC
 		;;
 	    Audio)
 		eval "AID$AIDC=\"\$id\""
-		eval "AID${AIDC}DESC=\"\$bname, stream#\$id0, \$desc\""
+		eval "AID${AIDC}DESC=\"\$bname, int.stream#\$id0," \
+		    "\$desc\""
 		case "$desc" in *\ \(default\)) AIDDEF="$AIDC" ;; esac
 		state="AID${AIDC}DESC"
 		incr AIDC
 		;;
 	    Subtitles)
 		eval "SID$SIDC=\"\$id\""
-		eval "SID${SIDC}DESC=\"\$bname, stream#\$id0, \$desc\""
+		eval "SID${SIDC}DESC=\"\$bname, int.stream#\$id0," \
+		    "\$desc\""
 		case "$desc" in *\ \(default\)) SIDDEF="$SIDC" ;; esac
 		state="SID${SIDC}DESC"
 		incr SIDC
@@ -539,6 +542,45 @@ if ( [ "z$AID" = "z" ] && \
 	esac
     done <"$TMP_OUT"
 fi
+
+# Find external audio streams:
+i=0
+inxc="$INC"	; # input + ext files counter
+while [ "$i" -lt "$INC" ] ; do
+    eval "ibname=\"\$IN${i}BNAME\""
+    eval "idir=\"\$IN${i}DIR\""
+    # Create search pattern for find ... -name ... Note: when the
+    # old-style `` substitution is used, \$, \` and \\ sequences _are_
+    # expanded before subshell is forked to execute the command:
+    find_prefix="`perl -wse \
+	'$ARGV[0] =~ s/([]*?[])/\\\\$1/g; print $ARGV[0]' \
+	-- "${ibname%.*}"`"
+    if [ "z$ADIR" != "z" ] ; then
+	adir="$ADIR"
+    else
+	adir="$idir"
+    fi
+    # Look for .flac, .mka, .mp3 & .ogg files:
+    find "$adir" -name "$find_prefix*.flac" \
+	-o -name "$find_prefix*.FLAC" \
+	-o -name "$find_prefix*.mka" \
+	-o -name "$find_prefix*.MKA" \
+	-o -name "$find_prefix*.mp3" \
+	-o -name "$find_prefix*.MP3" \
+	-o -name "$find_prefix*.ogg" \
+	-o -name "$find_prefix*.OGG" | sort >"$TMP_OUT"
+    while read f ; do
+	if [ -f "$f" ] || [ -h "$f" ] ; then
+	    # store audio file info in AIDxx/AIDxxDESC variables:
+	    eval "AID$AIDC=\"\$inxc:0\""
+	    eval "AID${AIDC}DESC=\"\$f, ext.stream#\$inxc:0\""
+	    eval "AID${AIDC}EXTF=\"\$f\""
+	    incr AIDC
+	    incr inxc
+	fi
+    done <"$TMP_OUT"
+    incr i
+done
 
 # Find AID by AIDX/ALANG:
 if [ "z$AIDX" != "z" ] ; then
@@ -577,7 +619,17 @@ if [ "z$AID" = "z" ] && [ "z$aidx" != "z" ] ; then
 	eval "id=\"\$AID$i\""
 	mark=""
 	if [ "z$AID" = "z" ] && [ "z$aidm" = "z$i" ] ; then
-	    AID="$id"; mark=" *"
+	    mark=" *"
+	    extf=""
+	    eval "extf=\"\$AID${i}EXTF\""
+	    if [ "z$extf" != "z" ] ; then
+		# add external file to list of inputs and calculate
+		# resulting AID:
+		AID="$INC:${id#*:}"
+		add_in_file "$extf"
+	    else
+		AID="$id"
+	    fi
 	fi
 	echo "aid#$i: $desc$mark"
 	incr i
