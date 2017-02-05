@@ -11,7 +11,8 @@ tasks:
 * normalize audio volume (when downmixing from 5.1 or more channels,
   resulting audio is often too quiet),
 * detect buffer drops due to large audio timestamps jitter,
-* search for matching external subtitle files in subdirectories,
+* search for matching external audio files in input subdirectories,
+* search for matching external subtitle files in input subdirectories,
 * render subtitles over video (hardsub).
 
 The script is most useful for recoding anime tv series, when each video
