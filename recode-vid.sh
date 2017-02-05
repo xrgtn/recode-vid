@@ -3,6 +3,7 @@
 usage() {
     PROG="$1"
     echo "USAGE: $PROG [opts] in out
+    or: $PROG [opts] -id in [out]
     opts:
 	-ac	X	use audio codec X
 	-af	F	append audio filter F
@@ -12,6 +13,7 @@ usage() {
 	-arate	R	set audio rate R
 	-asd	S	set asyncts min_delta to S
 	-h	H	scale to height H
+	-id		print info on audio/subs IDs
 	-n		don't overwrite output file
 	-noass		don't use \"ass\" filter for subs
 	-sdir	D	external subtitles subdirectory
@@ -115,6 +117,7 @@ AF_VOL=""	; # "volume" audio filter
 AF_OTHER=""	; # other audio filters to append
 AFPRE_OTHER=""	; # other audio filters to prepend
 # other params:
+ID_MODE=""	; # "identify AIDs/SIDs" mode (-id)
 OVWR_OUT="-y"	; # "overwrite output file" option
 ARG_CNT=0	; # arguments counter
 CUR_OPT="none"	; # current option
@@ -363,6 +366,9 @@ parse_args() {
 		;;
 	    none)
 		case "$A" in
+		    -id)
+			ID_MODE="1"
+			;;
 		    -n) OVWR_OUT="-n" ;;
 		    -noass)
 			SUBS_FILTER="subtitles"
@@ -395,7 +401,15 @@ parse_args() {
 	TGRPN="$GRPC"
 	next_grp "tail"
     fi
-    [ "z$ARG_CNT" = "z2" ] || usage "${0##*/}"
+    if [ "z$ID_MODE" = "z1" ] ; then
+	if [ "z$IN0" = "" ] ; then
+	    usage "${0##*/}"
+	fi
+    else
+	if [ "z$ARG_CNT" != "z2" ] ; then
+	    usage "${0##*/}"
+	fi
+    fi
 }
 
 if ! [ -x /usr/bin/bc ] ; then
@@ -590,7 +604,8 @@ elif [ "z$ALANG" != "z" ] ; then
 else
     aidx=""
 fi
-if [ "z$AID" = "z" ] && [ "z$aidx" != "z" ] ; then
+if ( [ "z$AID" = "z" ] && [ "z$aidx" != "z" ] ) \
+    || [ "z$ID_MODE" = "z1" ] ; then
     i=0
     aidm=""	; # matching aid
     aidmc=0	; # count of matching aids
@@ -646,7 +661,8 @@ if [ "z$AID" = "z" ] ; then AID="0:a:0" ; fi
 
 # Detect max volume and raise it if THRESH_VOL is set:
 if [ "z$ADD_VOL" = "z" ] && [ "z$THRESH_VOL" != "z" ] \
-	&& [ "z$THRESH_VOL" != "znone" ] ; then
+	&& [ "z$THRESH_VOL" != "znone" ] \
+	&& [ "z$ID_MODE" != "z1" ] ; then
     ffmpeg="ffmpeg -hide_banner"
     i=0
     while [ "$i" -lt "$INC" ] ; do
@@ -893,6 +909,11 @@ if [ "z$SID" != "znone" ] ; then
 fi
 
 rm -f "$TMP_OUT"
+
+if [ "z$ID_MODE" = "z1" ] ; then
+    rm -f "${TMPF}".*
+    exit 0
+fi
 
 ffmpeg="ffmpeg -hide_banner"
 i=0
