@@ -12,6 +12,7 @@ usage() {
 	-arate	R	set audio rate R
 	-asd	S	set asyncts min_delta to S
 	-h	H	scale to height H
+	-noass		don't use \"ass\" filter for subs
 	-sid	N	select Nth subtitles stream
 	-subcp	X	assume codepage X for input subtitles
 	-subsd	D	external subtitles subdirectory
@@ -368,6 +369,9 @@ parse_args() {
 		;;
 	    none)
 		case "$A" in
+		    -noass)
+			SUBS_FILTER="subtitles"
+			;;
 		    -*)
 			CUR_OPT="$A"
 			;;
@@ -715,7 +719,9 @@ if [ "z$SID" != "znone" ] ; then
 		    TMP_SUBS="${TMPF}.srt"
 		    ;;
 		*Stream\ *:\ Subtitle:\ ass*)
-		    SUBS_FILTER="ass"
+		    if [ "z$SUBS_FILTER" = "z" ] ; then
+			SUBS_FILTER="ass"
+		    fi
 		    TMP_SUBS="${TMPF}.ass"
 		    ;;
 		*)  die "unsupported sid#$sid: $s" ;;
@@ -733,7 +739,9 @@ if [ "z$SID" != "znone" ] ; then
 	    echo "selecting $sstor sid#$sid: $s"
 	    case $s in
 		*.ass|*.ASS)
-		    SUBS_FILTER="ass"
+		    if [ "z$SUBS_FILTER" = "z" ] ; then
+			SUBS_FILTER="ass"
+		    fi
 		    TMP_SUBS="${TMPF}.ass"
 		    ;;
 		*.srt|*.SRT)
