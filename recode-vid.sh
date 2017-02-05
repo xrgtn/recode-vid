@@ -292,10 +292,6 @@ parse_args() {
 		VF_SCALE=",scale=h=$A:w=ceil(iw*oh/ih/sar/2)*2,setsar=sar=1"
 		CUR_OPT="none"
 		;;
-	    -n)
-		OVWR_OUT="-n"
-		CUR_OPT="none"
-		;;
 	    -sid)
 		SID="$A"
 		CUR_OPT="none"
@@ -341,10 +337,6 @@ parse_args() {
 		VF_SCALE=",scale=w=$A:h=ceil(ih*ow/iw/sar/2)*2,setsar=sar=1"
 		CUR_OPT="none"
 		;;
-	    -y)
-		OVWR_OUT="-y"
-		CUR_OPT="none"
-		;;
 	    -*)
 		case "$CUR_OPT" in
 		    -b:v)
@@ -369,9 +361,11 @@ parse_args() {
 		;;
 	    none)
 		case "$A" in
+		    -n) OVWR_OUT="-n" ;;
 		    -noass)
 			SUBS_FILTER="subtitles"
 			;;
+		    -y) OVWR_OUT="-y" ;;
 		    -*)
 			CUR_OPT="$A"
 			;;
