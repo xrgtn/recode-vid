@@ -383,7 +383,7 @@ parse_args() {
 				ARG_CNT="2"
 				;;
 			    *)
-				usage "$0"
+				usage "${0##*/}"
 				;;
 			esac
 			;;
@@ -395,7 +395,7 @@ parse_args() {
 	TGRPN="$GRPC"
 	next_grp "tail"
     fi
-    [ "z$ARG_CNT" = "z2" ] || usage "$0"
+    [ "z$ARG_CNT" = "z2" ] || usage "${0##*/}"
 }
 
 if ! [ -x /usr/bin/bc ] ; then
