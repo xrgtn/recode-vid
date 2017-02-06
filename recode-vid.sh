@@ -725,10 +725,7 @@ fi
 
 # Detect subtitles stream ID and filename:
 if [ "z$SID" != "znone" ] ; then
-    if ! [ -f "$TMP_OUT" ] ; then
-	echo ffmpeg -i "$IN0"
-	ffmpeg -i "$IN0" >"$TMP_OUT" 2>&1
-    fi
+    ffmpeg -i "$IN0" >"$TMP_OUT" 2>&1
     NSUB=0
     DEF_SID=""
     while read L ; do
@@ -804,14 +801,14 @@ if [ "z$SID" != "znone" ] ; then
 		*)  die "unsupported sid#$sid: $s" ;;
 	    esac
 	    # extract subtitles to tmp file:
-	    echo ffmpeg -i "$IN0" \
+	    echo ffmpeg -hide_banner -i "$IN0" \
 		-map_metadata -1 -map_chapters -1 \
 		-an -vn -map "0:s:$sid" -c:s copy \
 		-y "$TMP_SUBS"
-	    ffmpeg -i "$IN0" \
+	    ffmpeg -hide_banner -i "$IN0" \
 		-map_metadata -1 -map_chapters -1 \
 		-an -vn -map "0:s:$sid" -c:s copy \
-		-y "$TMP_SUBS" 2>&1 | tee "$TMP_OUT"
+		-y "$TMP_SUBS" >"$TMP_OUT" 2>&1
 	elif [ "z$sstor" = "zext" ] ; then
 	    echo "selecting $sstor sid#$sid: $s"
 	    case $s in
