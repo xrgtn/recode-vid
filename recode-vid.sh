@@ -37,15 +37,28 @@ check_fileencoding() {
 	my (\$fn, \$enc, \$thresh) = @ARGV;
 	die "check_fileencoding: filename is required\\n"
 	    if not defined \$fn;
+	my \$bom;
 	\$enc = "utf8" if not defined \$enc;
 	\$thresh = 0.01 if not defined \$thresh;
 	open my \$fh, "<", \$fn or die \$!;
 	my (\$bad, \$total) = (0, 0);
 	while (<\$fh>) {
+	    if (\$total == 0 and \$enc =~ /\\Autf-?8\\z/i) {
+		my \$b2 = substr(\$_, 0, 2);
+		if (\$b2 eq "\\xff\\xfe") {
+		    \$bom = "utf16le BOM \\"fffe\\" detected";
+		} elsif (\$b2 eq "\\xfe\\xff") {
+		    \$bom = "utf16be BOM \\"feff\\" detected";
+		};
+	    };
 	    \$total += length(\$_);
 	    decode(\$enc, \$_, sub {\$bad++; return "\\x{FFFD}"});
 	};
 	close \$fh;
+	if (defined \$bom) {
+	    printf "%s: %s\\n", \$fn, \$bom;
+	    exit 1;
+	};
 	if (\$bad / \$total < \$thresh) {
 	    if (\$bad) {
 		printf "%s: %i bad char%s (%.2f%%), assuming %s\\n",
