@@ -526,6 +526,29 @@ match() {
     return 0
 }
 
+# Run ffmpeg commandline (first argument) with stderr/stdout redirected
+# to the filename passed as 2nd argument. If ffmpeg fails, send its
+# logged output to stderr and die().
+run_ffmpeg() {
+    case "$3" in
+	0) ;;
+	1|"") eval "echo $1";;
+	[23]|*) echo "$1" ; eval "echo $1";;
+    esac
+    case "$3" in
+	[012]|"") eval "$1 </dev/null >\"\$2\" 2>&1";;
+	3|*) eval "$1 </dev/null 2>&1 | tee \"\$2\"";;
+    esac
+    E="$?"
+    if [ "z$E" != "z0" ] ; then
+	case "$3" in
+	    [012]|"") cat "$2" 1>&2;;
+	    3|*) ;;
+	esac
+	die "$E"
+    fi
+}
+
 # Detect internal video/audio/subtitles stream IDs:
 if ( [ "z$AID" = "z" ] && \
     ( [ "z$AIDX" != "z" ] || [ "z$ALANG" != "z" ] ) ) \
@@ -847,13 +870,6 @@ if [ "z$SID" != "z" ] ; then
 	E="$?" ; if [ "z$E" != "z0" ] ; then die "$E" ; fi
     else
 	# Extract subtitles to tmp file:
-	if [ "z$SIDTYPE" = "z" ] ; then
-	    # TODO: extract SID to temporary mkv file, detect type
-	    # of its 1st subtitles stream and extract againt to
-	    # temporary .ass or .srt file:
-	    die "unknown subs type for $SID"
-	fi
-	TMP_SUBS="${TMPF}.$SIDTYPE"
 	ffmpeg="ffmpeg -hide_banner"
 	i=0
 	while [ "$i" -lt "$INC" ] ; do
@@ -863,17 +879,55 @@ if [ "z$SID" != "z" ] ; then
 	done
 	ffmpeg="$ffmpeg -map_metadata -1 -map_chapters -1"
 	ffmpeg="$ffmpeg -an -vn -map \"\$SID\" -c:s copy"
-	ffmpeg="$ffmpeg -y \"\$TMP_SUBS\""
-	if [ "z$TGRPN" != "z" ] ; then
-	    append_grp2cmd "$TGRPN" ffmpeg
-	fi
-	echo "$ffmpeg"
-	eval "echo $ffmpeg"
-	eval "$ffmpeg >\"\$TMP_OUT\" 2>&1"
-	E="$?"
-	if [ "z$E" != "z0" ] ; then
-	    cat "$TMP_OUT" 1>&2
-	    die "$E"
+	if [ "z$SIDTYPE" = "z" ] ; then
+	    # XXX: extract SID to temporary mkv file, detect type of
+	    # its 1st subtitles stream and extract again to temporary
+	    # .ass or .srt file:
+	    TMP_MKV="${TMPF}.mkv"
+	    ffmpeg1="$ffmpeg -y \"\$TMP_MKV\""
+	    if [ "z$TGRPN" != "z" ] ; then
+		append_grp2cmd "$TGRPN" ffmpeg1
+	    fi
+	    run_ffmpeg "$ffmpeg1" "$TMP_OUT" 0
+	    state=""
+	    while readw L ; do
+		case "$state$L" in
+		    Output\ \#0,*)
+			state="o"
+			;;
+		    o\ \ \ \ Stream\ \#0:0*:\ Subtitle:\ ass*)
+			SIDTYPE="ass"
+			break
+			;;
+		    o\ \ \ \ Stream\ \#0:0*:\ Subtitle:\ subrip*)
+			SIDTYPE="srt"
+			break
+			;;
+		esac
+	    done <"$TMP_OUT"
+	    if [ "z$SIDTYPE" = "z" ] ; then
+		die "unknown subs type for $SID"
+	    fi
+	    TMP_SUBS="${TMPF}.$SIDTYPE"
+	    ffmpeg2="ffmpeg -hide_banner"
+	    ffmpeg2="$ffmpeg2 -i \"\$TMP_MKV\""
+	    ffmpeg2="$ffmpeg2 -map_metadata -1 -map_chapters -1"
+	    ffmpeg2="$ffmpeg2 -an -vn -map 0:0 -c:s copy"
+	    ffmpeg2="$ffmpeg2 -y \"\$TMP_SUBS\""
+	    if [ "z$TGRPN" != "z" ] ; then
+		append_grp2cmd "$TGRPN" ffmpeg2
+	    fi
+	    run_ffmpeg "$ffmpeg2" "$TMP_OUT" 0
+	    if ! rm -f "$TMP_MKV" ; then
+		die "cannot remove $TMP_MKV"
+	    fi
+	else
+	    TMP_SUBS="${TMPF}.$SIDTYPE"
+	    ffmpeg="$ffmpeg -y \"\$TMP_SUBS\""
+	    if [ "z$TGRPN" != "z" ] ; then
+		append_grp2cmd "$TGRPN" ffmpeg
+	    fi
+	    run_ffmpeg "$ffmpeg" "$TMP_OUT" 0
 	fi
     fi
     if ! [ -f "$TMP_SUBS" ] ; then
