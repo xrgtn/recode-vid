@@ -475,11 +475,6 @@ parse_args() {
     fi
 }
 
-if ! [ -x /usr/bin/bc ] ; then
-    die "/usr/bin/bc not found"
-fi
-parse_args "$@"
-
 # Read data with leading whitespace:
 readw() {
     readw_ifs0="$IFS"
@@ -548,6 +543,11 @@ run_ffmpeg() {
 	die "$E"
     fi
 }
+
+if ! [ -x /usr/bin/bc ] ; then
+    die "/usr/bin/bc not found"
+fi
+parse_args "$@"
 
 # Detect internal video/audio/subtitles stream IDs:
 if ( [ "z$AID" = "z" ] && \
