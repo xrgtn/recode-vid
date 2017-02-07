@@ -285,6 +285,38 @@ append_grp2cmd() {
     fi
 }
 
+append_ins2cmd() {
+    if ! expr "z$1" : 'z[A-Za-z_][A-Za-z_0-9]*$' >/dev/null ; then
+	die "invalid variable name - $1"
+    fi
+    ai=0
+    while [ "$ai" -lt "$INC" ] ; do
+	eval "$1=\"\$$1 -i \\\"\\\$IN$ai\\\"\""
+	incr ai
+    done
+}
+
+append_ingrps2cmd() {
+    if ! expr "z$1" : 'z[A-Za-z_][A-Za-z_0-9]*$' >/dev/null ; then
+	die "invalid variable name - $1"
+    fi
+    ai=0
+    while [ "$ai" -lt "$INC" ] ; do
+	eval "ag=\"\$IN${ai}GRP\""
+	append_grp2cmd "$ag" "$1" "full"
+	incr ai
+    done
+}
+
+append_tgrp2cmd() {
+    if ! expr "z$1" : 'z[A-Za-z_][A-Za-z_0-9]*$' >/dev/null ; then
+	die "invalid variable name - $1"
+    fi
+    if [ "z$TGRPN" != "z" ] ; then
+	append_grp2cmd "$TGRPN" "$1"
+    fi
+}
+
 # parse_stream_id AID 0:1
 parse_stream_id() {
     if ! expr "z$1" : 'z[A-Za-z_][A-Za-z_0-9]*$' >/dev/null ; then
@@ -526,27 +558,55 @@ match() {
 # logged output to stderr and die().
 run_ffmpeg() {
     case "$3" in
-	0) ;;
-	1|"") eval "echo $1";;
-	[23]|*) echo "$1" ; eval "echo $1";;
+	[012]|"") ;;
+	[34]|*) echo "$1";;
     esac
     case "$3" in
-	[012]|"") eval "$1 </dev/null >\"\$2\" 2>&1";;
-	3|*) eval "$1 </dev/null 2>&1 | tee \"\$2\"";;
+	[01]) ;;
+	""|[234]|*) eval "echo $1";;
     esac
+    if [ "z$2" != "z" ] ; then
+	case "$3" in
+	    [0123]|"") eval "$1 </dev/null >\"\$2\" 2>&1";;
+	    [4]|*) eval "$1 </dev/null 2>&1 | tee \"\$2\"";;
+	esac
+    else
+	case "$3" in
+	    [0123]|"") eval "$1 </dev/null >/dev/null 2>&1";;
+	    [4]|*) eval "$1 </dev/null";;
+	esac
+    fi
     E="$?"
     if [ "z$E" != "z0" ] ; then
 	case "$3" in
-	    [012]|"") cat "$2" 1>&2;;
-	    3|*) ;;
+	    0)
+		# XXX: ignore ffmpeg errors when verbosity is 0
+		;;
+	    [123]|"")
+		if [ "z$2" != "z" ] ; then
+		    cat "$2" 1>&2
+		fi
+		die "$E"
+		;;
+	    [4]|*) die "$E";;
 	esac
-	die "$E"
     fi
 }
 
-if ! [ -x /usr/bin/bc ] ; then
-    die "/usr/bin/bc not found"
-fi
+ifs0="$IFS"
+IFS=":"
+for f in ffmpeg bc perl ; do
+    x=0
+    for p in $PATH ; do
+	if [ -x "$p/$f" ] ; then
+	    x=1
+	fi
+    done
+    if [ "z$x" = "z0" ] ; then
+	die "$f not found"
+    fi
+done
+IFS="$ifs0"
 parse_args "$@"
 
 # Detect internal video/audio/subtitles stream IDs:
@@ -554,14 +614,8 @@ if ( [ "z$AID" = "z" ] && \
     ( [ "z$AIDX" != "z" ] || [ "z$ALANG" != "z" ] ) ) \
 || [ "z$SID" != "znone" ] ; then
     ffmpeg="ffmpeg -hide_banner"
-    i=0
-    while [ "$i" -lt "$INC" ] ; do
-	ffmpeg="$ffmpeg -i \"\$IN$i\""
-	incr i
-    done
-    echo "$ffmpeg"
-    eval "echo $ffmpeg"
-    eval "$ffmpeg >\"\$TMP_OUT\" 2>&1"
+    append_ins2cmd ffmpeg
+    run_ffmpeg "$ffmpeg" "$TMP_OUT" 0
     state=""
     while readw L ; do
 	# Stream #0:1(rus): Audio: aac (HE-AAC), 44100 Hz, 5.1,
@@ -871,12 +925,7 @@ if [ "z$SID" != "z" ] ; then
     else
 	# Extract subtitles to tmp file:
 	ffmpeg="ffmpeg -hide_banner"
-	i=0
-	while [ "$i" -lt "$INC" ] ; do
-	    eval "g=\"\$IN${i}GRP\""
-	    append_grp2cmd "$g" ffmpeg "full"
-	    incr i
-	done
+	append_ingrps2cmd ffmpeg
 	ffmpeg="$ffmpeg -map_metadata -1 -map_chapters -1"
 	ffmpeg="$ffmpeg -an -vn -map \"\$SID\" -c:s copy"
 	if [ "z$SIDTYPE" = "z" ] ; then
@@ -885,10 +934,8 @@ if [ "z$SID" != "z" ] ; then
 	    # .ass or .srt file:
 	    TMP_MKV="${TMPF}.mkv"
 	    ffmpeg1="$ffmpeg -y \"\$TMP_MKV\""
-	    if [ "z$TGRPN" != "z" ] ; then
-		append_grp2cmd "$TGRPN" ffmpeg1
-	    fi
-	    run_ffmpeg "$ffmpeg1" "$TMP_OUT" 0
+	    append_tgrp2cmd ffmpeg1
+	    run_ffmpeg "$ffmpeg1" "$TMP_OUT" 1
 	    state=""
 	    while readw L ; do
 		case "$state$L" in
@@ -914,20 +961,16 @@ if [ "z$SID" != "z" ] ; then
 	    ffmpeg2="$ffmpeg2 -map_metadata -1 -map_chapters -1"
 	    ffmpeg2="$ffmpeg2 -an -vn -map 0:0 -c:s copy"
 	    ffmpeg2="$ffmpeg2 -y \"\$TMP_SUBS\""
-	    if [ "z$TGRPN" != "z" ] ; then
-		append_grp2cmd "$TGRPN" ffmpeg2
-	    fi
-	    run_ffmpeg "$ffmpeg2" "$TMP_OUT" 0
+	    append_tgrp2cmd ffmpeg2
+	    run_ffmpeg "$ffmpeg2" "$TMP_OUT" 1
 	    if ! rm -f "$TMP_MKV" ; then
 		die "cannot remove $TMP_MKV"
 	    fi
 	else
 	    TMP_SUBS="${TMPF}.$SIDTYPE"
 	    ffmpeg="$ffmpeg -y \"\$TMP_SUBS\""
-	    if [ "z$TGRPN" != "z" ] ; then
-		append_grp2cmd "$TGRPN" ffmpeg
-	    fi
-	    run_ffmpeg "$ffmpeg" "$TMP_OUT" 0
+	    append_tgrp2cmd ffmpeg
+	    run_ffmpeg "$ffmpeg" "$TMP_OUT" 1
 	fi
     fi
     if ! [ -f "$TMP_SUBS" ] ; then
@@ -1031,12 +1074,7 @@ fi
 if [ "z$ADD_VOL" = "z" ] && [ "z$THRESH_VOL" != "z" ] \
 	&& [ "z$THRESH_VOL" != "znone" ] ; then
     ffmpeg="ffmpeg -hide_banner"
-    i=0
-    while [ "$i" -lt "$INC" ] ; do
-	eval "g=\"\$IN${i}GRP\""
-	append_grp2cmd "$g" ffmpeg "full"
-	incr i
-    done
+    append_ingrps2cmd ffmpeg
     aresample="aresample=\${ARATE}och=2:osf=fltp:ocl=downmix"
     asyncts="asyncts=min_delta=\$ASD"
     teelog="2>&1 | tee \"\$TMP_OUT\""
@@ -1045,12 +1083,8 @@ if [ "z$ADD_VOL" = "z" ] && [ "z$THRESH_VOL" != "z" ] \
     ffmpeg="$ffmpeg -af \"\${AFPRE_OTHER}asyncts=min_delta=\$ASD"
     ffmpeg="$ffmpeg,aresample=\${ARATE}och=2:osf=fltp:ocl=downmix"
     ffmpeg="$ffmpeg,volumedetect\$AF_OTHER\" -f matroska -y /dev/null"
-    if [ "z$TGRPN" != "z" ] ; then
-	append_grp2cmd "$TGRPN" ffmpeg
-    fi
-    echo "$ffmpeg"
-    eval "echo $ffmpeg"
-    eval "$ffmpeg $teelog"
+    append_tgrp2cmd ffmpeg
+    run_ffmpeg "$ffmpeg" "$TMP_OUT" 4
     MAX_VOL=""
     # [Parsed_volumedetect_1 @ 0xc92960] max_volume: -1.4 dB
     MAX_VOL="`sed -nr \
@@ -1079,12 +1113,7 @@ fi
 rm -f "$TMP_OUT"
 
 ffmpeg="ffmpeg -hide_banner"
-i=0
-while [ "$i" -lt "$INC" ] ; do
-    eval "g=\"\$IN${i}GRP\""
-    append_grp2cmd "$g" ffmpeg "full"
-    incr i
-done
+append_ingrps2cmd ffmpeg
 ffmpeg="$ffmpeg -map_metadata -1"
 ffmpeg="$ffmpeg -map_chapters -1"
 ffmpeg="$ffmpeg -map \"\$VID\""
@@ -1104,12 +1133,8 @@ fi
 if [ "z$TMP_PASS" = "z" ] ; then
     append_grp2cmd "$OUT0GRP" ffmpeg
     ffmpeg="$ffmpeg $OVWR_OUT \"\$OUT0\""
-    if [ "z$TGRPN" != "z" ] ; then
-	append_grp2cmd "$TGRPN" ffmpeg
-    fi
-    echo "$ffmpeg"
-    eval "echo $ffmpeg"
-    eval "$ffmpeg </dev/null"
+    append_tgrp2cmd ffmpeg
+    run_ffmpeg "$ffmpeg" "" 4
 else
     ffmpeg1="$ffmpeg -pass 1 -passlogfile \"\$TMP_PASS\""
     append_grp2cmd "$OUT0GRP" ffmpeg1
@@ -1117,17 +1142,10 @@ else
     ffmpeg2="$ffmpeg -pass 2 -passlogfile \"\$TMP_PASS\""
     append_grp2cmd "$OUT0GRP" ffmpeg2
     ffmpeg2="$ffmpeg2 -y \"\$OUT0\""
-    if [ "z$TGRPN" != "z" ] ; then
-	append_grp2cmd "$TGRPN" ffmpeg1
-	append_grp2cmd "$TGRPN" ffmpeg2
-    fi
-    echo "$ffmpeg1"
-    eval "echo $ffmpeg1"
-    eval "$ffmpeg1 </dev/null"
-    E="$?" ; if [ "z$E" != "z0" ] ; then die "$E" ; fi
-    echo "$ffmpeg2"
-    eval "echo $ffmpeg2"
-    eval "$ffmpeg2 </dev/null"
+    append_tgrp2cmd ffmpeg1
+    append_tgrp2cmd ffmpeg2
+    run_ffmpeg "$ffmpeg1" "" 4
+    run_ffmpeg "$ffmpeg2" "" 4
 fi
 
 if [ "z$TMP_PASS" != "z" ] ; then
