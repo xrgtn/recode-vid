@@ -105,9 +105,11 @@ trap eint INT
 
 # video/subtitles params:
 VID="0:v:0"
-SID=""
+SID=""		; # subtitles stream id
+SIDX=""		; # subtitles stream selector expression
+SIDTYPE=""	; # subtitles type: "ass" or "srt"
 SUBCP=""	; # subtitles codepage
-SUBSD=""	; # external subtitles subdirectory
+SDIR=""		; # external subtitles subdirectory
 SUBSS=""	; # forced subtitles style
 SUBS_FILTER=""	; # "ass" "or subtitles"
 VF_SUBS=""	; # "subtitles"/"ass" video filter with params
@@ -143,7 +145,7 @@ TGRPN=""	; # tail group number
 # video/audio/subs streams:
 VIDC=0		; # video streams counter
 AIDC=0		; # audio streams counter
-SUBC=0		; # subtitles streams counter
+SIDC=0		; # subtitles streams counter
 
 incr() {
     if ! expr "z$1" : 'z[A-Za-z_][A-Za-z_0-9]*$' >/dev/null ; then
@@ -245,6 +247,7 @@ parse_stream_id() {
     hre='\([0-9][0-9]*\|0x[0-9a-fA-F]\{1,\}\)'	; # dec/hex
     wre='[A-Za-z_][A-Za-z_0-9]*'		; # word
     if [ "z$A" = "znone" ] ; then
+	# none
 	eval "$1=\"\$2\""
     elif expr "z$A" : 'z[0-9][0-9]*:[0-9][0-9]*$' \
     >/dev/null ; then
@@ -268,7 +271,7 @@ parse_stream_id() {
 	# m:LANGUAGE:jpn, 9:m:LANGUAGE:rus, m:ENCODER, 10:m:ENCODER
 	eval "$1=\"\$2\""
     else
-	# 5:rus!default
+	# 0, rus, !default, 5:rus!default & so on
 	eval "${1}X=\"\$2\""
     fi
 }
@@ -311,7 +314,7 @@ parse_args() {
 		CUR_OPT="none"
 		;;
 	    -sid)
-		SID="$A"
+		parse_stream_id SID "$A"
 		CUR_OPT="none"
 		;;
 	    -subcp)
@@ -319,7 +322,7 @@ parse_args() {
 		CUR_OPT="none"
 		;;
 	    -subsd|-sdir)
-		SUBSD="$A"
+		SDIR="$A"
 		CUR_OPT="none"
 		;;
 	    -subss)
@@ -504,7 +507,7 @@ if ( [ "z$AID" = "z" ] && \
 	case "$L" in
 	    \ \ \ \ Stream\ \#*:\ Video:\ *) state="Video";;
 	    \ \ \ \ Stream\ \#*:\ Audio:\ *) state="Audio";;
-	    \ \ \ \ Stream\ \#*:\ Subtitles:\ *) state="Subtitles";;
+	    \ \ \ \ Stream\ \#*:\ Subtitle:\ *) state="Subtitle";;
 	    \ \ \ \ Metadata:)
 		if ! expr "z$state" : 'z[AVS]ID[0-9][0-9]*DESC$' \
 		    >/dev/null ; then
@@ -528,7 +531,7 @@ if ( [ "z$AID" = "z" ] && \
 	    *)  state="";;
 	esac
 	case "$state" in
-	    Video|Audio|Subtitles)
+	    Video|Audio|Subtitle)
 		desc="${L#    Stream #}"
 		id0="${desc%%: $state: *}"
 		desc="${desc#*: $state: }"
@@ -558,11 +561,17 @@ if ( [ "z$AID" = "z" ] && \
 		state="AID${AIDC}DESC"
 		incr AIDC
 		;;
-	    Subtitles)
+	    Subtitle)
 		eval "SID$SIDC=\"\$id\""
 		eval "SID${SIDC}DESC=\"\$bname, int.stream#\$id0," \
 		    "\$desc\""
 		case "$desc" in *\ \(default\)) SIDDEF="$SIDC" ;; esac
+		case "$desc" in
+		    ass[,\ ]*|ass)
+			eval "SID${SIDC}TYPE=\"ass\"";;
+		    subrip[,\ ]*|subrip)
+			eval "SID${SIDC}TYPE=\"srt\"";;
+		esac
 		state="SID${SIDC}DESC"
 		incr SIDC
 		;;
@@ -570,42 +579,80 @@ if ( [ "z$AID" = "z" ] && \
     done <"$TMP_OUT"
 fi
 
-# Find external audio streams:
+# Find external audio/subtitles streams:
 i=0
 inxc="$INC"	; # input + ext files counter
 while [ "$i" -lt "$INC" ] ; do
     eval "ibname=\"\$IN${i}BNAME\""
     eval "idir=\"\$IN${i}DIR\""
+    if [ "z$ADIR" != "z" ] ; then
+	# XXX: run "find" for audio files only once for ADIR:
+	if [ "z$i" = "z0" ] ; then
+	    adir="$ADIR"
+	else
+	    adir=""
+	fi
+    else
+	adir="$idir"
+    fi
+    if [ "z$SDIR" != "z" ] ; then
+	# XXX: run "find" for subtitle files only once for SDIR:
+	if [ "z$i" = "z0" ] ; then
+	    sdir="$SDIR"
+	else
+	    sdir=""
+	fi
+    else
+	sdir="$idir"
+    fi
     # Create search pattern for find ... -name ... Note: when the
     # old-style `` substitution is used, \$, \` and \\ sequences _are_
     # expanded before subshell is forked to execute the command:
     find_prefix="`perl -wse \
 	'$ARGV[0] =~ s/([]*?[])/\\\\$1/g; print $ARGV[0]' \
 	-- "${ibname%.*}"`"
-    if [ "z$ADIR" != "z" ] ; then
-	adir="$ADIR"
-    else
-	adir="$idir"
-    fi
     # Look for .flac, .mka, .mp3 & .ogg files:
-    find "$adir" -name "$find_prefix*.flac" \
-	-o -name "$find_prefix*.FLAC" \
-	-o -name "$find_prefix*.mka" \
-	-o -name "$find_prefix*.MKA" \
-	-o -name "$find_prefix*.mp3" \
-	-o -name "$find_prefix*.MP3" \
-	-o -name "$find_prefix*.ogg" \
-	-o -name "$find_prefix*.OGG" | sort >"$TMP_OUT"
-    while read f ; do
-	if [ -f "$f" ] || [ -h "$f" ] ; then
-	    # store audio file info in AIDxx/AIDxxDESC variables:
-	    eval "AID$AIDC=\"\$inxc:0\""
-	    eval "AID${AIDC}DESC=\"\$f, ext.stream#\$inxc:0\""
-	    eval "AID${AIDC}EXTF=\"\$f\""
-	    incr AIDC
-	    incr inxc
-	fi
-    done <"$TMP_OUT"
+    if [ "z$adir" != "z" ] ; then
+	find "$adir" -name "$find_prefix*.flac" \
+	    -o -name "$find_prefix*.FLAC" \
+	    -o -name "$find_prefix*.mka" \
+	    -o -name "$find_prefix*.MKA" \
+	    -o -name "$find_prefix*.mp3" \
+	    -o -name "$find_prefix*.MP3" \
+	    -o -name "$find_prefix*.ogg" \
+	    -o -name "$find_prefix*.OGG" | sort >"$TMP_OUT"
+	while readw f ; do
+	    if [ -f "$f" ] || [ -h "$f" ] ; then
+		# store audio file info in AIDxx/AIDxxDESC variables:
+		eval "AID$AIDC=\"\$inxc:0\""
+		eval "AID${AIDC}DESC=\"\$f, ext.stream#\$inxc:0\""
+		eval "AID${AIDC}EXTF=\"\$f\""
+		incr AIDC
+		incr inxc
+	    fi
+	done <"$TMP_OUT"
+    fi
+    # Look for .ass and .srt files:
+    if [ "z$sdir" != "z" ] ; then
+	find "$sdir" -name "$find_prefix*.ass" \
+	    -o -name "$find_prefix*.ASS" \
+	    -o -name "$find_prefix*.srt" \
+	    -o -name "$find_prefix*.SRT" | sort >"$TMP_OUT"
+	while readw f ; do
+	    if [ -f "$f" ] || [ -h "$f" ] ; then
+		# store .ass/.srt file name in SUBSxx variable:
+		eval "SID$SIDC=\"\$inxc:0\""
+		eval "SID${SIDC}DESC=\"\$f, ext.stream#\$inxc:0\""
+		eval "SID${SIDC}EXTF=\"\$f\""
+		case "$f" in
+		    *.ass|*.ASS) eval "SID${SIDC}TYPE=\"ass\"";;
+		    *.srt|*.SRT) eval "SID${SIDC}TYPE=\"srt\"";;
+		esac
+		incr SIDC
+		incr inxc
+	    fi
+	done <"$TMP_OUT"
+    fi
     incr i
 done
 
@@ -622,6 +669,7 @@ if ( [ "z$AID" = "z" ] && [ "z$aidx" != "z" ] ) \
     i=0
     aidm=""	; # matching aid
     aidmc=0	; # count of matching aids
+    matchno=""	; # selected index in array of matching aids
     while [ "$i" -lt "$AIDC" ] ; do
 	eval "desc=\"\$AID${i}DESC\""
 	if match "$desc" "$aidx" ; then
@@ -672,10 +720,206 @@ if ( [ "z$AID" = "z" ] && [ "z$aidx" != "z" ] ) \
 fi
 if [ "z$AID" = "z" ] ; then AID="0:a:0" ; fi
 
+# Find SID by SIDX or select it by default:
+sidm=""		; # matching sid
+sidmc=0		; # count of matching sids
+matchno=""	; # selected index in array of matching sids
+if [ "z$SID" = "z" ] ; then
+    if [ "z$SIDX" != "z" ] ; then
+	i=0
+	while [ "$i" -lt "$SIDC" ] ; do
+	    eval "desc=\"\$SID${i}DESC\""
+	    if match "$desc" "$SIDX" ; then
+		eval "sidm$sidmc=$i"
+		incr sidmc
+	    fi
+	    incr i
+	done
+	if [ 0 -lt "$sidmc" ] ; then
+	    if [ "z$matchno" = "z" ] ; then
+		matchno=0
+	    fi
+	    if [ "$matchno" -lt 0 ] ; then
+		matchno="`expr "$sidmc" + "$matchno"`"
+	    fi
+	    if [ 0 -le "$matchno" ] \
+		&& [ "$matchno" -lt "$sidmc" ] ; then
+		eval "sidm=\"\$sidm$matchno\""
+	    fi
+	fi
+    elif [ "$SIDC" -gt 0 ] ; then
+	# Select default SID or SID0 if no -sid was given on cmdline
+	# and there is at least one SID stream there:
+	if [ "z$SIDDEF" != "z" ] ; then
+	    sidm="$SIDDEF"
+	else
+	    sidm=0
+	fi
+    fi
+    # Convert sidm to SID:
+    if [ "z$sidm" != "z" ] ; then
+	eval "SID=\"\$SID$sidm\""
+	eval "SIDEXTF=\"\$SID${sidm}EXTF\""
+	eval "SIDTYPE=\"\$SID${sidm}TYPE\""
+    fi
+fi
+# Print all SIDs:
+if [ "z$SID" != "znone" ] || [ "z$ID_MODE" = "z1" ] ; then
+    i=0
+    while [ "$i" -lt "$SIDC" ] ; do
+	eval "desc=\"\$SID${i}DESC\""
+	eval "id=\"\$SID$i\""
+	if [ "z$sidm" = "z$i" ] ; then
+	    mark=" *"
+	else
+	    mark=""
+	fi
+	echo "sid#$i: $desc$mark"
+	incr i
+    done
+fi
+# Abort if requested SID has not been found:
+if [ "z$SID" = "z" ] && [ "z$SIDX" != "z" ] ; then
+    if [ "z$ID_MODE" != "z1" ] ; then
+	die "\"$SIDX\" subtitles stream not found"
+    else
+	echo "WARNING: \"$SIDX\" subtitles stream not found" 1>&2
+    fi
+fi
+
+# Extract/recode SID and setup SID filter:
+if [ "z$SID" != "z" ] ; then
+    # Extract/copy subtitles to TMP_SUBS:
+    if [ "z$SIDEXTF" != "z" ] ; then
+	if [ "z$SIDTYPE" = "z" ] ; then
+	    die "unknown subs type for $SIDEXTF"
+	fi
+	TMP_SUBS="${TMPF}.$SIDTYPE"
+	rm -f "$TMP_SUBS"
+	cp "$SIDEXTF" "$TMP_SUBS"
+	E="$?" ; if [ "z$E" != "z0" ] ; then die "$E" ; fi
+    else
+	# Extract subtitles to tmp file:
+	if [ "z$SIDTYPE" = "z" ] ; then
+	    # TODO: extract SID to temporary mkv file, detect type
+	    # of its 1st subtitles stream and extract againt to
+	    # temporary .ass or .srt file:
+	    die "unknown subs type for $SID"
+	fi
+	TMP_SUBS="${TMPF}.$SIDTYPE"
+	ffmpeg="ffmpeg -hide_banner"
+	i=0
+	while [ "$i" -lt "$INC" ] ; do
+	    eval "g=\"\$IN${i}GRP\""
+	    append_grp2cmd "$g" ffmpeg "full"
+	    incr i
+	done
+	ffmpeg="$ffmpeg -map_metadata -1 -map_chapters -1"
+	ffmpeg="$ffmpeg -an -vn -map \"\$SID\" -c:s copy"
+	ffmpeg="$ffmpeg -y \"\$TMP_SUBS\""
+	if [ "z$TGRPN" != "z" ] ; then
+	    append_grp2cmd "$TGRPN" ffmpeg
+	fi
+	echo "$ffmpeg"
+	eval "echo $ffmpeg"
+	eval "$ffmpeg >\"\$TMP_OUT\" 2>&1"
+	E="$?"
+	if [ "z$E" != "z0" ] ; then
+	    cat "$TMP_OUT" 1>&2
+	    die "$E"
+	fi
+    fi
+    if ! [ -f "$TMP_SUBS" ] ; then
+	die "Cannot extract/copy to $TMP_SUBS"
+    fi
+    if [ "z$SUBS_FILTER" = "z" ] ; then
+	case "$SIDTYPE" in
+	    ass)   SUBS_FILTER="ass";;
+	    srt|*) SUBS_FILTER="subtitles";;
+	esac
+    fi
+    # Detect subs encoding unless SUBCP has been explicitly specified
+    # on cmdline:
+    if [ "z$SUBCP" != "z" ] ; then
+	subcp="$SUBCP"
+    else
+	if check_fileencoding "$TMP_SUBS" utf8 ; then
+	    subcp="utf-8"
+	elif iconv -f utf-16 -t utf-8 <"$TMP_SUBS" \
+	>/dev/null 2>&1 ; then
+	    subcp="utf-16"
+	elif iconv -f cp1251 -t utf-8 <"$TMP_SUBS" \
+	>/dev/null 2>&1 ; then
+	    subcp="cp1251"
+	else
+	    die "unknown encoding for subs $SID"
+	fi
+    fi
+    # XXX: "ass" filter doesn't take charenc= option and sometimes srt
+    # decoder fails with the next message:
+    #   [srt @ 0x141b160] Unable to recode subtitle event "..." from
+    #   utf-16 to UTF-8
+    # Therefore we explicitly pass .ass/.srt files through iconv before
+    # rendering subs:
+    if [ "z$SUBS_FILTER" = "zass" ] \
+    || [ "z$SUBS_FILTER" = "zsubtitles" ] ; then
+	case $subcp in
+	    utf-8|UTF-8|utf8|UTF8)
+		echo "file $TMP_SUBS" \
+		    "is already in $subcp"
+		subcp=""
+		;;
+	    ?*)
+		echo "recoding $TMP_SUBS" \
+		    "from $subcp to utf-8"
+		if [ "z$SUBCP" != "z" ] ; then
+		    # force conversion:
+		    iconv -f "$subcp" -t "utf-8" -c \
+			<"$TMP_SUBS" >"$TMP_OUT"
+		    mv "$TMP_OUT" "$TMP_SUBS"
+		else
+		    # attempt conversion:
+		    if iconv -f "$subcp" -t "utf-8" \
+		    <"$TMP_SUBS" >"$TMP_OUT" \
+		    && mv "$TMP_OUT" "$TMP_SUBS" ; then
+			true
+		    else
+			die "recoding $TMP_SUBS" \
+			    "from $subcp to utf-8 failed"
+		    fi
+		fi
+		subcp=""
+		;;
+	esac
+    fi
+    # convert to UNIX line endings:
+    if perl -p -wse 's/\r*\n/\n/g' <"$TMP_SUBS" >"$TMP_OUT" \
+    && mv "$TMP_OUT" "$TMP_SUBS" ; then
+	true
+    else
+	die "converting $TMP_SUBS" \
+	    "to UNIX line endings failed"
+    fi
+    if [ "z$subcp" != "z" ] ; then
+	subcp=":charenc=${subcp}"
+    fi
+    if [ "z$SUBSS" != "z" ] ; then
+	# XXX: "ass" filter doesn't accept force_style
+	# option, therefore we fallback to "subtitles":
+	SUBS_FILTER="subtitles"
+	SUBSS=":force_style=${SUBSS}"
+    fi
+    VF_SUBS=",$SUBS_FILTER=${TMP_SUBS}${subcp}${SUBSS}"
+fi
+
+if [ "z$ID_MODE" = "z1" ] ; then
+    rm -f "${TMPF}".*
+    exit 0
+fi
+
 # Detect max volume and raise it if THRESH_VOL is set:
 if [ "z$ADD_VOL" = "z" ] && [ "z$THRESH_VOL" != "z" ] \
-	&& [ "z$THRESH_VOL" != "znone" ] \
-	&& [ "z$ID_MODE" != "z1" ] ; then
+	&& [ "z$THRESH_VOL" != "znone" ] ; then
     ffmpeg="ffmpeg -hide_banner"
     i=0
     while [ "$i" -lt "$INC" ] ; do
@@ -722,208 +966,7 @@ fi
 if [ "z$ADD_VOL" != "z" ] ; then
     AF_VOL=",volume=volume=+${ADD_VOL}dB"
 fi
-
-# Detect subtitles stream ID and filename:
-if [ "z$SID" != "znone" ] ; then
-    ffmpeg -i "$IN0" >"$TMP_OUT" 2>&1
-    NSUB=0
-    DEF_SID=""
-    while read L ; do
-	# detect default subs stream:
-	case $L in
-	    *Stream\ *:\ Subtitle:*\(default\))
-		DEF_SID="$NSUB"
-		;;
-	esac
-	# increment subs stream counter:
-	case $L in
-	    *Stream\ *:\ Subtitle:*)
-		# store type of int subs in SUBSxx variable:
-       		eval "SUBS$NSUB=\$L"
-       		eval "SUBSSTOR$NSUB=int"
-		echo "sid#$NSUB: $IN0, $L"
-		NSUB="`expr 1 + "$NSUB"`"
-		;;
-	esac
-    done <"$TMP_OUT"
-    # Create search pattern for find ... -name ... Note: when the
-    # old-style `` substitution is used, \$, \` and \\ sequences _are_
-    # expanded before subshell is forked to execute the command:
-    IN_FIND_NAME="`perl -wse \
-	'$ARGV[0] =~ s/([]*?[])/\\\\$1/g; print $ARGV[0]' \
-	-- "${IN0BNAME%.*}"`"
-    # Look for .ass and .srt files:
-    if [ "z$SUBSD" != "z" ] ; then
-	subsd="$SUBSD"
-    else
-	subsd="$IN0DIR"
-    fi
-    find "$subsd" -name "$IN_FIND_NAME*.ass" \
-	-o -name "$IN_FIND_NAME*.ASS" \
-	-o -name "$IN_FIND_NAME*.srt" \
-	-o -name "$IN_FIND_NAME*.SRT" | sort >"$TMP_OUT"
-    while read f ; do
-	if [ -f "$f" ] || [ -h "$f" ] ; then
-	    # store .ass/.srt file name in SUBSxx variable:
-	    eval "SUBS$NSUB=\"\$f\""
-	    eval "SUBSSTOR$NSUB=ext"
-	    echo "sid#$NSUB: $f"
-	    NSUB="`expr 1 + "$NSUB"`"
-	fi
-    done <"$TMP_OUT"
-    # If there's no default SID in input file, assume SID 0:
-    [ "z$DEF_SID" = "z" ] && DEF_SID="0"
-    # If SID parameter is empty, use default SID:
-    case "z$SID" in
-	z)        sid="$DEF_SID" ;;
-	z[0-9]*)  sid="$SID"     ;;
-	z-[0-9]*) sid="`expr "$NSUB" + "$SID"`" ;;
-	*)        die "invalid -sid: $sid" ;;
-    esac
-    # Render subs if the specified stream is found:
-    if [ 0 -le $sid ] && [ $sid -lt $NSUB ] ; then
-	eval "s=\"\$SUBS$sid\""	; # s=$SUBS0, s=$SUBS1 etc...
-				  # depending on $sid
-	eval "sstor=\"\$SUBSSTOR$sid\""
-	if [ "z$sstor" = "zint" ] ; then
-	    echo "selecting $sstor sid#$sid: $IN0, $s"
-	    case $s in
-		*Stream\ *:\ Subtitle:\ subrip*)
-		    SUBS_FILTER="subtitles"
-		    TMP_SUBS="${TMPF}.srt"
-		    ;;
-		*Stream\ *:\ Subtitle:\ ass*)
-		    if [ "z$SUBS_FILTER" = "z" ] ; then
-			SUBS_FILTER="ass"
-		    fi
-		    TMP_SUBS="${TMPF}.ass"
-		    ;;
-		*)  die "unsupported sid#$sid: $s" ;;
-	    esac
-	    # extract subtitles to tmp file:
-	    echo ffmpeg -hide_banner -i "$IN0" \
-		-map_metadata -1 -map_chapters -1 \
-		-an -vn -map "0:s:$sid" -c:s copy \
-		-y "$TMP_SUBS"
-	    ffmpeg -hide_banner -i "$IN0" \
-		-map_metadata -1 -map_chapters -1 \
-		-an -vn -map "0:s:$sid" -c:s copy \
-		-y "$TMP_SUBS" >"$TMP_OUT" 2>&1
-	elif [ "z$sstor" = "zext" ] ; then
-	    echo "selecting $sstor sid#$sid: $s"
-	    case $s in
-		*.ass|*.ASS)
-		    if [ "z$SUBS_FILTER" = "z" ] ; then
-			SUBS_FILTER="ass"
-		    fi
-		    TMP_SUBS="${TMPF}.ass"
-		    ;;
-		*.srt|*.SRT)
-		    SUBS_FILTER="subtitles"
-		    TMP_SUBS="${TMPF}.srt"
-		    ;;
-	    esac
-	    rm -f "$TMP_SUBS"
-	    # we need absolute filename for symlink target:
-	    sdir="${s%/*}"
-	    sbase="${s##*/}"
-	    if [ "z$sdir" = "z" ] ; then
-		sdir="/"
-	    elif [ "z$sdir" = "z$s" ] ; then
-		sdir="`pwd`"
-	    else
-		cd "$sdir" ; sdir="`pwd`" ; cd "$OLDPWD"
-	    fi
-	    case "$sdir" in */) ;; *) sdir="$sdir/" ;; esac
-	    ln -s "$sdir$sbase" "$TMP_SUBS"
-	else
-	    # XXX: sstor must be either int or ext
-	    die "unknown storage for sid#$sid"
-	fi
-	if [ "z$TMP_SUBS" != "z" ] ; then
-	    # autodetect subs encoding unless SUBCP has been
-	    # explicitly specified on cmdline:
-	    if [ "z$SUBCP" != "z" ] ; then
-		subcp="$SUBCP"
-	    else
-		if check_fileencoding "$TMP_SUBS" utf8 ; then
-		    subcp="utf-8"
-		elif iconv -f utf-16 -t utf-8 <"$TMP_SUBS" \
-		>/dev/null 2>&1 ; then
-		    subcp="utf-16"
-		elif iconv -f cp1251 -t utf-8 <"$TMP_SUBS" \
-		>/dev/null 2>&1 ; then
-		    subcp="cp1251"
-		else
-		    die "unknown sid#$sid ($s) encoding"
-		fi
-	    fi
-	    # XXX: "ass" filter doesn't take charenc= option
-	    # and sometimes srt decoder fails with the next
-	    # message:
-	    #   [srt @ 0x141b160] Unable to recode subtitle
-	    #   event "..." from utf-16 to UTF-8
-	    # Therefore we explicitly pass .ass/.srt files
-	    # through iconv before rendering subs:
-	    if [ "z$SUBS_FILTER" = "zass" ] \
-	    ||	[ "z$SUBS_FILTER" = "zsubtitles" ] ; then
-		case $subcp in
-		    utf-8|UTF-8|utf8|UTF8)
-			echo "file $TMP_SUBS" \
-			    "is already in $subcp"
-			subcp=""
-			;;
-		    ?*)
-			echo "recoding $TMP_SUBS" \
-			    "from $subcp to utf-8"
-			if [ "z$SUBCP" != "z" ] ; then
-			    # force conversion:
-			    iconv -f "$subcp" -t "utf-8" -c \
-				<"$TMP_SUBS" >"$TMP_OUT"
-			    mv "$TMP_OUT" "$TMP_SUBS"
-			else
-			    # attempt conversion:
-			    if iconv -f "$subcp" -t "utf-8" \
-			    <"$TMP_SUBS" >"$TMP_OUT" \
-			    && mv "$TMP_OUT" "$TMP_SUBS" ; then
-				true
-			    else
-				die "recoding $TMP_SUBS" \
-				    "from $subcp to utf-8 failed"
-			    fi
-			fi
-			subcp=""
-			;;
-		esac
-	    fi
-	    # convert to UNIX line endings:
-	    if perl -p -wse 's/\r*\n/\n/g' <"$TMP_SUBS" >"$TMP_OUT" \
-	    && mv "$TMP_OUT" "$TMP_SUBS" ; then
-		true
-	    else
-		die "converting $TMP_SUBS" \
-		    "to UNIX line endings failed"
-	    fi
-	    if [ "z$subcp" != "z" ] ; then
-		subcp=":charenc=${subcp}"
-	    fi
-	    if [ "z$SUBSS" != "z" ] ; then
-		# XXX: "ass" filter doesn't accept force_style
-		# option, therefore we fallback to "subtitles":
-		SUBS_FILTER="subtitles"
-		SUBSS=":force_style=${SUBSS}"
-	    fi
-	    VF_SUBS=",$SUBS_FILTER=${TMP_SUBS}${subcp}${SUBSS}"
-	fi
-    fi
-fi
-
 rm -f "$TMP_OUT"
-
-if [ "z$ID_MODE" = "z1" ] ; then
-    rm -f "${TMPF}".*
-    exit 0
-fi
 
 ffmpeg="ffmpeg -hide_banner"
 i=0
