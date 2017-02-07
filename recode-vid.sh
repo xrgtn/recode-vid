@@ -73,6 +73,53 @@ EOF
     return $?
 }
 
+# Prepend missing [Event] and Format headers in broken ASS streams:
+prepend_missing_event_and_format() {
+    perl -ws -- - "$1" "$2" <<'EOF'
+open my $infh, "<", $ARGV[0] or die $!;
+my $outfh;
+if (not open $outfh, ">", $ARGV[1]) {
+    my $err = $!;
+    close $infh;
+    die $err;
+};
+
+my $section = "";
+my $sectlines = 0;
+my $lastevfmt;
+
+while (<$infh>) {
+    if (/\A[\r\n]*\z/) {
+	$section = "";
+	$sectlines = -1;
+    } elsif (/\A\s*\[\s*(.*\S)\s*\]\s*\z/) {
+	$section = lc($1);
+	$sectlines = -1;
+    } elsif ($section eq "events" and $sectlines == 0
+    and /\A\s*format\s*:/i) {
+	$lastevfmt = $_;
+    } elsif ($section eq "" and $sectlines == 0
+    and /\A\s*(comment|dialog(:?ue)?)\s*:/i) {
+	print {$outfh} "[Events]\n";
+	$section = "events";
+	if (defined $lastevfmt) {
+	    print {$outfh} $lastevfmt;
+	} else {
+	    print {$outfh} "Format: Layer, Start, End, Style, Name, "
+		."MarginL, MarginR, MarginV, Effect, Text\n";
+	};
+    };
+    $sectlines++;
+    print {$outfh} $_;
+};
+
+close $outfh;
+close $infh;
+EOF
+    return $?
+}
+
+
 SCRIPT_BNAME="${0##*/}"
 SCRIPT_BNAME_S="`perl -wsle \
    '$ARGV[0] =~ s/[^A-Za-z0-9_.-]/_/g; print $ARGV[0]' \
@@ -899,6 +946,15 @@ if [ "z$SID" != "z" ] ; then
     else
 	die "converting $TMP_SUBS" \
 	    "to UNIX line endings failed"
+    fi
+    if [ "z$SIDTYPE" = "zass" ] ; then
+	if prepend_missing_event_and_format "$TMP_SUBS" "$TMP_OUT" \
+	&& mv "$TMP_OUT" "$TMP_SUBS" ; then
+	    true
+	else
+	    die "prepending missing [Event] and Format" \
+		"in $TMP_SUBS failed"
+	fi
     fi
     if [ "z$subcp" != "z" ] ; then
 	subcp=":charenc=${subcp}"
