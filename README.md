@@ -37,8 +37,10 @@ If -alang is specified while -aid is not, its value is used as audio
 stream "selector". If -aid option is specified, its value overrides
 -alang's one and is used as a "selector" instead.
 
-Fansubs are processed in a similar way except there's no -slang option,
-only -sid one.
+Subtitles are selected in a similar way except there's no -slang
+option, only -sid one.
+
+Video stream selectors are not supported at the moment.
 
 Audio and subtitles "selectors" may be composed of several positive
 and/or negative case-sensitive patterns, separated/prefixed by ':' and
