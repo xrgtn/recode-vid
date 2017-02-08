@@ -687,15 +687,16 @@ if ( [ "z$AID" = "z" ] && \
 		;;
 	    Subtitle)
 		eval "SID$SIDC=\"\$id\""
-		eval "SID${SIDC}DESC=\"\$bname, int.stream#\$id0," \
-		    "\$desc\""
-		case "$desc" in *\ \(default\)) SIDDEF="$SIDC" ;; esac
 		case "$desc" in
 		    ass[,\ ]*|ass)
 			eval "SID${SIDC}TYPE=\"ass\"";;
 		    subrip[,\ ]*|subrip)
+			desc="srt${desc#subrip}"
 			eval "SID${SIDC}TYPE=\"srt\"";;
 		esac
+		case "$desc" in *\ \(default\)) SIDDEF="$SIDC" ;; esac
+		eval "SID${SIDC}DESC=\"\$bname, int.stream#\$id0," \
+		    "\$desc\""
 		state="SID${SIDC}DESC"
 		incr SIDC
 		;;
