@@ -25,6 +25,7 @@ main video file is called
 "[Yousei-raws] Kuuchuu Buranko 07 [BDrip 1920x1080 x264 FLAC].mkv",
 the script is able to find matching fandub file:
 * "RUS Sound [Vulpes Vulpes]/[Yousei-raws] Kuuchuu Buranko 07 [BDrip 1920x1080 x264 FLAC].mka"
+
 and matching fansubs:
 * "RUS Subs [NWP]/[Yousei-raws] Kuuchuu Buranko 07 [BDrip 1920x1080 x264 FLAC].ass"
 * "RUS Subs [NWP]/[Yousei-raws] Kuuchuu Buranko 07 [BDrip 1920x1080 x264 FLAC].censored version.ass"
