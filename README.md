@@ -54,3 +54,6 @@ matching stream, 1st one is selected unless selector contains a number.
 For example, 'rus:0' matches 1st russian stream, '1' matches 2nd
 stream, '-1:eng' matches last english stream and 'jap:-2' matches last
 but one japanese.
+
+Logical ORing or grouping of patterns isn't supported in stream
+selectors.
