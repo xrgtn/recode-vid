@@ -31,11 +31,11 @@ and matching fansubs:
 * "RUS Subs [NWP]/[Yousei-raws] Kuuchuu Buranko 07 [BDrip 1920x1080 x264 FLAC].censored version.ass"
 
 If neither -aid nor -alang option is specified the script picks up the
-default audio stream. If no default stream is found, it picks the 1st
-stream (internal streams are considered first, external streams next).
-If -alang is specified while -aid is not, its value is used as audio
-stream "selector". If -aid option is specified, its value overrides
--alang's one and is used as a "selector" instead.
+default audio stream. If no default stream is found, it picks up the
+1st audio stream (internal streams are considered first, external
+streams next). If -alang is specified while -aid is not, -alang's value
+is used as audio stream "selector". If -aid option is specified, its
+value overrides -alang's one and is used as a "selector" instead.
 
 Subtitles are selected in a similar way except there's no -slang
 option, only -sid one.
