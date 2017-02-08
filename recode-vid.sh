@@ -4,29 +4,29 @@ usage() {
     PROG="$1"
     echo "USAGE: $PROG [opts] in out
     or: $PROG [opts] -id in [out]
-    opts:
-	-ac	X	use audio codec X
+    $PROG opts:
+	-ac	X	use audio codec X [libvorbis]
 	-af	F	append audio filter F
 	-afpre	F	prepend audio filter F
-	-aid	X	audio stream selector
+	-aid	X	audio stream selector [default|0]
 	-alang	L	set audio stream language L
 	-arate	R	set audio rate R
-	-asd	S	set asyncts min_delta to S
+	-asd	S	set asyncts min_delta to S [0.3]
 	-h	H	scale to height H
 	-id		print info on audio/subs IDs
-	-n		don't overwrite output file
+	-n		don't overwrite output file [-y]
 	-noass		don't use \"ass\" filter for subs
 	-sdir	D	external subtitles subdirectory
-	-sid	N	select Nth subtitles stream
-	-subcp	X	assume codepage X for input subtitles
+	-sid	X	subtitles stream selector [default|0]
+	-subcp	X	assume codepage X for input subtitles [auto]
 	-subss	X	force subs style X (e.g. Fontstyle=40)
-	-tvol	T	set volume threshold at T dB
+	-tvol	T	set volume threshold at T dB [-0.1]
 	-vf	F	append video filter F
 	-vfpre	F	prepend video filter F
-	-vid	N	select Nth video stream
+	-vid	N	select Nth video stream [0]
 	-vol	A	increase volume by A dB
 	-w	W	scale to width W
-	-y		overwrite output file (default)"
+	-y		overwrite output file [-y]"
     exit 1
 }
 
