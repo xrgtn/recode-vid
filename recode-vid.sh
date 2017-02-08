@@ -25,7 +25,7 @@ usage() {
 	-vfpre	F	prepend video filter F
 	-vid	N	select Nth video stream [0]
 	-vol	A	increase volume by A dB
-	-w	W	scale to width W
+	-w	W	scale to width W [720]
 	-y		overwrite output file [-y]"
     exit 1
 }
