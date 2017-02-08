@@ -595,7 +595,7 @@ run_ffmpeg() {
 
 ifs0="$IFS"
 IFS=":"
-for f in ffmpeg bc perl ; do
+for f in ffmpeg bc perl cat grep ; do
     x=0
     for p in $PATH ; do
 	if [ -x "$p/$f" ] ; then
