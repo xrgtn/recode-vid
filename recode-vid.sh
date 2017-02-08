@@ -766,13 +766,19 @@ while [ "$i" -lt "$INC" ] ; do
 	while readw f ; do
 	    if [ -f "$f" ] || [ -h "$f" ] ; then
 		# store .ass/.srt file name in SUBSxx variable:
-		eval "SID$SIDC=\"\$inxc:0\""
-		eval "SID${SIDC}DESC=\"\$f, ext.stream#\$inxc:0\""
-		eval "SID${SIDC}EXTF=\"\$f\""
 		case "$f" in
-		    *.ass|*.ASS) eval "SID${SIDC}TYPE=\"ass\"";;
-		    *.srt|*.SRT) eval "SID${SIDC}TYPE=\"srt\"";;
+		    *.ass|*.ASS) typ="ass";;
+		    *.srt|*.SRT) typ="srt";;
 		esac
+		if [ "z$typ" != "z" ] ; then
+		    eval "SID${SIDC}TYPE=\"\$typ\""
+		    t=", $typ"
+		else
+		    t=""
+		fi
+		eval "SID$SIDC=\"\$inxc:0\""
+		eval "SID${SIDC}DESC=\"\$f, ext.stream#\$inxc:0\$t\""
+		eval "SID${SIDC}EXTF=\"\$f\""
 		incr SIDC
 		incr inxc
 	    fi
