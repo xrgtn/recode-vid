@@ -174,7 +174,7 @@ ASD="0.3"	; # asyncts min_delta [0.3s]. You need to increase it
 		  # whole buffer." XXX
 ALANG=""	; # output audio language tag
 ADD_VOL=""	; # additional audio volume
-THRESH_VOL="-0.5" ; # volume threshold for autoincrease
+THRESH_VOL="-0.1" ; # volume threshold for autoincrease
 AF_VOL=""	; # "volume" audio filter
 AF_OTHER=""	; # other audio filters to append
 AFPRE_OTHER=""	; # other audio filters to prepend
