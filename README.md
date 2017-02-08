@@ -18,3 +18,36 @@ tasks:
 The script is most useful for recoding anime tv series, when each video
 file has several audio tracks and external fansubs in various languages
 ("jpn", "rus", "eng" etc).
+
+Its most useful feature is ability to search for external audio and
+subtitle files in subdirectories near main video files. For example, if
+main video file is called
+"[Yousei-raws] Kuuchuu Buranko 07 [BDrip 1920x1080 x264 FLAC].mkv",
+the script is able to find matching fandub file:
+* "RUS Sound [Vulpes Vulpes]/[Yousei-raws] Kuuchuu Buranko 07 [BDrip 1920x1080 x264 FLAC].mka"
+and matching fansubs:
+* "RUS Subs [NWP]/[Yousei-raws] Kuuchuu Buranko 07 [BDrip 1920x1080 x264 FLAC].ass"
+* "RUS Subs [NWP]/[Yousei-raws] Kuuchuu Buranko 07 [BDrip 1920x1080 x264 FLAC].censored version.ass"
+
+If neither -aid nor -alang option is specified the script picks up the
+default audio stream. If no default stream is found, it picks the 1st
+stream (internal streams are considered first, external streams next).
+If -alang is specified while -aid is not, its value is used as audio
+stream "selector". If -aid option is specified, its value overrides
+-alang's one and is used as a "selector" instead.
+
+Fansubs are processed in a similar way except there's no -slang option,
+only -sid one.
+
+Audio and subtitles "selectors" may be composed of several positive
+and/or negative case-sensitive patterns, separated/prefixed by ':' and
+'!', and for a selector to match a stream, all of its patterns must
+match the stream's description. Negative patterns start with '!',
+positive start with ':'. If first pattern in selector isn't prefixed,
+it's assumed to be positive.  For example, -sid 'rus!default:srt' is
+split into 3 patterns - ':rus', '!default' and ':srt' and it matches
+non-default russian srt subtitle streams. If there's more than one
+matching stream, 1st one is selected unless selector contains a number.
+For example, 'rus:0' matches 1st russian stream, '1' matches 2nd
+stream, '-1:eng' matches last english stream and 'jap:-2' matches last
+but one japanese.
