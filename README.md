@@ -65,11 +65,11 @@ without audio track. "-sid none" turns off subtitle rendering. If you
 want to use "none" as a selector, prefix it with ':'. The same trick
 works if selector looks like ffmpeg-style stream\_id:
 * input\_file\_index:stream\_index, e.g. 0:1
-* [input\_file\_index:]stream\_type[:stream\_index], e.g. '0:a:1',
+* [input\_file\_index:]stream\_type[:stream\_index], e.g. '0\:a:1',
   '0:a', 'a:1', 'a'
 * [input\_file\_index:]p:program\_id[:stream\_index], e.g. '0:p:1:0',
   '0:p:1', 'p:1:0', 'p:1'
 * [input\_file\_index:]#stream\_id, e.g. '0:#0x1100', '#0x1100'
 * [input\_file\_index:]i:stream\_id, e.g. '0:i:0x1100', 'i:0x1100'
-* [input\_file\_index:]m:key[:value], e.g. '0:m:LANGUAGE:eng',
-  '0:m:LANGUAGE', 'm:LANGUAGE:eng', 'm:LANGUAGE'
+* [input\_file\_index:]m:key[:value], e.g. '0\:m:LANGUAGE:eng',
+  '0\:m:LANGUAGE', 'm:LANGUAGE:eng', 'm:LANGUAGE'
