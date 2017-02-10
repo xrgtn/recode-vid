@@ -920,7 +920,7 @@ if [ "z$SID" = "z" ] && [ "z$SIDX" != "z" ] ; then
 fi
 
 # Extract/recode SID and setup SID filter:
-if [ "z$SID" != "z" ] ; then
+if [ "z$SID" != "z" ] && [ "z$SID" != "znone" ] ; then
     # Extract/copy subtitles to TMP_SUBS:
     if [ "z$SIDEXTF" != "z" ] ; then
 	if [ "z$SIDTYPE" = "z" ] ; then
