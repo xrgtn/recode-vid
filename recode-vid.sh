@@ -610,10 +610,10 @@ done
 IFS="$ifs0"
 parse_args "$@"
 
-# Detect internal video/audio/subtitles stream IDs:
-if ( [ "z$AID" = "z" ] && \
-    ( [ "z$AIDX" != "z" ] || [ "z$ALANG" != "z" ] ) ) \
-|| [ "z$SID" != "znone" ] ; then
+# Detect internal & external stream IDs:
+if [ "z$AID" != "znone" ] || [ "z$SID" != "znone" ] \
+    || [ "z$ID_MODE" = "z1" ] ; then
+    # Detect internal video/audio/subtitles stream IDs:
     ffmpeg="ffmpeg -hide_banner"
     append_ins2cmd ffmpeg
     run_ffmpeg "$ffmpeg" "$TMP_OUT" 0
@@ -703,92 +703,98 @@ if ( [ "z$AID" = "z" ] && \
 		;;
 	esac
     done <"$TMP_OUT"
+
+    # Find external audio/subtitles streams:
+    i=0
+    inxc="$INC"	; # input + ext files counter
+    while [ "$i" -lt "$INC" ] ; do
+	eval "ibname=\"\$IN${i}BNAME\""
+	eval "idir=\"\$IN${i}DIR\""
+	if [ "z$ADIR" != "z" ] ; then
+	    # XXX: run "find" for audio files only once for ADIR:
+	    if [ "z$i" = "z0" ] ; then
+		adir="$ADIR"
+	    else
+		adir=""
+	    fi
+	else
+	    adir="$idir"
+	fi
+	if [ "z$SDIR" != "z" ] ; then
+	    # XXX: run "find" for subtitle files only once for SDIR:
+	    if [ "z$i" = "z0" ] ; then
+		sdir="$SDIR"
+	    else
+		sdir=""
+	    fi
+	else
+	    sdir="$idir"
+	fi
+	# Create search pattern for find ... -name ... Note: when the
+	# old-style `` substitution is used, \$, \` and \\ sequences
+	# _are_ expanded before subshell is forked to execute the
+	# command:
+	find_prefix="`perl -wse \
+	    '$ARGV[0] =~ s/([]*?[])/\\\\$1/g; print $ARGV[0]' \
+	    -- "${ibname%.*}"`"
+	# Look for .flac, .mka, .mp3 & .ogg files:
+	if [ "z$adir" != "z" ] ; then
+	    find "$adir" -name "$find_prefix*.flac" \
+		-o -name "$find_prefix*.FLAC" \
+		-o -name "$find_prefix*.mka" \
+		-o -name "$find_prefix*.MKA" \
+		-o -name "$find_prefix*.mp3" \
+		-o -name "$find_prefix*.MP3" \
+		-o -name "$find_prefix*.ogg" \
+		-o -name "$find_prefix*.OGG" | sort >"$TMP_OUT"
+	    while readw f ; do
+		if [ -f "$f" ] || [ -h "$f" ] ; then
+		    # store audio file info in AIDxx/AIDxxDESC
+		    # variables:
+		    eval "AID$AIDC=\"\$inxc:0\""
+		    eval "AID${AIDC}DESC=\"\$f, ext.stream#\$inxc:0\""
+		    eval "AID${AIDC}EXTF=\"\$f\""
+		    incr AIDC
+		    incr inxc
+		fi
+	    done <"$TMP_OUT"
+	fi
+	# Look for .ass and .srt files:
+	if [ "z$sdir" != "z" ] ; then
+	    find "$sdir" -name "$find_prefix*.ass" \
+		-o -name "$find_prefix*.ASS" \
+		-o -name "$find_prefix*.srt" \
+		-o -name "$find_prefix*.SRT" | sort >"$TMP_OUT"
+	    while readw f ; do
+		if [ -f "$f" ] || [ -h "$f" ] ; then
+		    # store .ass/.srt file name in SUBSxx variable:
+		    case "$f" in
+			*.ass|*.ASS) typ="ass";;
+			*.srt|*.SRT) typ="srt";;
+		    esac
+		    if [ "z$typ" != "z" ] ; then
+			eval "SID${SIDC}TYPE=\"\$typ\""
+			t=", $typ"
+		    else
+			t=""
+		    fi
+		    eval "SID$SIDC=\"\$inxc:0\""
+		    eval "SID${SIDC}DESC=\"\$f," \
+			"ext.stream#\$inxc:0\$t\""
+		    eval "SID${SIDC}EXTF=\"\$f\""
+		    incr SIDC
+		    incr inxc
+		fi
+	    done <"$TMP_OUT"
+	fi
+	incr i
+    done
 fi
 
-# Find external audio/subtitles streams:
-i=0
-inxc="$INC"	; # input + ext files counter
-while [ "$i" -lt "$INC" ] ; do
-    eval "ibname=\"\$IN${i}BNAME\""
-    eval "idir=\"\$IN${i}DIR\""
-    if [ "z$ADIR" != "z" ] ; then
-	# XXX: run "find" for audio files only once for ADIR:
-	if [ "z$i" = "z0" ] ; then
-	    adir="$ADIR"
-	else
-	    adir=""
-	fi
-    else
-	adir="$idir"
-    fi
-    if [ "z$SDIR" != "z" ] ; then
-	# XXX: run "find" for subtitle files only once for SDIR:
-	if [ "z$i" = "z0" ] ; then
-	    sdir="$SDIR"
-	else
-	    sdir=""
-	fi
-    else
-	sdir="$idir"
-    fi
-    # Create search pattern for find ... -name ... Note: when the
-    # old-style `` substitution is used, \$, \` and \\ sequences _are_
-    # expanded before subshell is forked to execute the command:
-    find_prefix="`perl -wse \
-	'$ARGV[0] =~ s/([]*?[])/\\\\$1/g; print $ARGV[0]' \
-	-- "${ibname%.*}"`"
-    # Look for .flac, .mka, .mp3 & .ogg files:
-    if [ "z$adir" != "z" ] ; then
-	find "$adir" -name "$find_prefix*.flac" \
-	    -o -name "$find_prefix*.FLAC" \
-	    -o -name "$find_prefix*.mka" \
-	    -o -name "$find_prefix*.MKA" \
-	    -o -name "$find_prefix*.mp3" \
-	    -o -name "$find_prefix*.MP3" \
-	    -o -name "$find_prefix*.ogg" \
-	    -o -name "$find_prefix*.OGG" | sort >"$TMP_OUT"
-	while readw f ; do
-	    if [ -f "$f" ] || [ -h "$f" ] ; then
-		# store audio file info in AIDxx/AIDxxDESC variables:
-		eval "AID$AIDC=\"\$inxc:0\""
-		eval "AID${AIDC}DESC=\"\$f, ext.stream#\$inxc:0\""
-		eval "AID${AIDC}EXTF=\"\$f\""
-		incr AIDC
-		incr inxc
-	    fi
-	done <"$TMP_OUT"
-    fi
-    # Look for .ass and .srt files:
-    if [ "z$sdir" != "z" ] ; then
-	find "$sdir" -name "$find_prefix*.ass" \
-	    -o -name "$find_prefix*.ASS" \
-	    -o -name "$find_prefix*.srt" \
-	    -o -name "$find_prefix*.SRT" | sort >"$TMP_OUT"
-	while readw f ; do
-	    if [ -f "$f" ] || [ -h "$f" ] ; then
-		# store .ass/.srt file name in SUBSxx variable:
-		case "$f" in
-		    *.ass|*.ASS) typ="ass";;
-		    *.srt|*.SRT) typ="srt";;
-		esac
-		if [ "z$typ" != "z" ] ; then
-		    eval "SID${SIDC}TYPE=\"\$typ\""
-		    t=", $typ"
-		else
-		    t=""
-		fi
-		eval "SID$SIDC=\"\$inxc:0\""
-		eval "SID${SIDC}DESC=\"\$f, ext.stream#\$inxc:0\$t\""
-		eval "SID${SIDC}EXTF=\"\$f\""
-		incr SIDC
-		incr inxc
-	    fi
-	done <"$TMP_OUT"
-    fi
-    incr i
-done
-
-# Find AID by AIDX/ALANG:
+# Find AID by AIDX/ALANG or select it by default:
+aidm=""		; # matching aid
+aidmc=0		; # count of matching aids
+matchno=""	; # selected index in array of matching aids
 if [ "z$AIDX" != "z" ] ; then
     aidx="$AIDX"
 elif [ "z$ALANG" != "z" ] ; then
@@ -796,52 +802,51 @@ elif [ "z$ALANG" != "z" ] ; then
 else
     aidx=""
 fi
-if ( [ "z$AID" = "z" ] && [ "z$aidx" != "z" ] ) \
-    || [ "z$ID_MODE" = "z1" ] ; then
-    i=0
-    aidm=""	; # matching aid
-    aidmc=0	; # count of matching aids
-    matchno=""	; # selected index in array of matching aids
-    while [ "$i" -lt "$AIDC" ] ; do
-	eval "desc=\"\$AID${i}DESC\""
-	if match "$desc" "$aidx" ; then
-	    eval "aidm$aidmc=$i"
-	    incr aidmc
-	fi
-	incr i
-    done
-    if [ 0 -lt "$aidmc" ] ; then
-	if [ "z$matchno" = "z" ] ; then
-	    matchno=0
-	fi
-	if [ "$matchno" -lt 0 ] ; then
-	    matchno="`expr "$aidmc" + "$matchno"`"
-	fi
-	if [ 0 -le "$matchno" ] && [ "$matchno" -lt "$aidmc" ] ; then
-	    eval "aidm=\"\$aidm$matchno\""
-	fi
-    fi
-    i=0
-    while [ "$i" -lt "$AIDC" ] ; do
-	eval "desc=\"\$AID${i}DESC\""
-	eval "id=\"\$AID$i\""
-	mark=""
-	if [ "z$AID" = "z" ] && [ "z$aidm" = "z$i" ] ; then
-	    mark=" *"
-	    extf=""
-	    eval "extf=\"\$AID${i}EXTF\""
-	    if [ "z$extf" != "z" ] ; then
-		# add external file to list of inputs and calculate
-		# resulting AID:
-		AID="$INC:${id#*:}"
-		add_in_file "$extf"
-	    else
-		AID="$id"
+if [ "z$AID" = "z" ] ; then
+    if [ "z$aidx" != "z" ] ; then
+	i=0
+	while [ "$i" -lt "$AIDC" ] ; do
+	    eval "desc=\"\$AID${i}DESC\""
+	    if match "$desc" "$aidx" ; then
+		eval "aidm$aidmc=$i"
+		incr aidmc
+	    fi
+	    incr i
+	done
+	if [ 0 -lt "$aidmc" ] ; then
+	    if [ "z$matchno" = "z" ] ; then
+		# XXX: it's possible to add all matching streams to
+		# output file, but ATM we select only the 1st one:
+		matchno=0
+	    fi
+	    if [ "$matchno" -lt 0 ] ; then
+		matchno="`expr "$aidmc" + "$matchno"`"
+	    fi
+	    if [ 0 -le "$matchno" ] \
+		&& [ "$matchno" -lt "$aidmc" ] ; then
+		eval "aidm=\"\$aidm$matchno\""
 	    fi
 	fi
-	echo "aid#$i: $desc$mark"
-	incr i
-    done
+    elif [ "$AIDC" -gt 0 ] ; then
+	# Select default AID or AID0 if no -aid was given on cmdline
+	# and there is at least one AID stream there:
+	if [ "z$AIDDEF" != "z" ] ; then
+	    aidm="$AIDDEF"
+	else
+	    aidm=0
+	fi
+    fi
+    # Convert aidm to AID:
+    if [ "z$aidm" != "z" ] ; then
+	eval "AID=\"\$AID$aidm\""
+	eval "AIDEXTF=\"\$AID${aidm}EXTF\""
+	if [ "z$AIDEXTF" != "z" ] ; then
+	    # add external file to list of inputs and
+	    # re-calculate resulting AID:
+	    AID="$INC:${AID#*:}"
+	    add_in_file "$AIDEXTF"
+	fi
+    fi
     if [ "z$AID" = "z" ] ; then
 	if [ "z$AIDX" != "z" ] || [ "$AIDC" -gt 1 ] ; then
 	    die "\"$aidx\" audio stream not found"
@@ -850,7 +855,29 @@ if ( [ "z$AID" = "z" ] && [ "z$aidx" != "z" ] ) \
 	fi
     fi
 fi
-if [ "z$AID" = "z" ] ; then AID="0:a:0" ; fi
+# Print all AIDs:
+if [ "z$AID" != "znone" ] || [ "z$ID_MODE" = "z1" ] ; then
+    i=0
+    while [ "$i" -lt "$AIDC" ] ; do
+	eval "desc=\"\$AID${i}DESC\""
+	eval "id=\"\$AID$i\""
+	if [ "z$aidm" = "z$i" ] ; then
+	    mark=" *"
+	else
+	    mark=""
+	fi
+	echo "aid#$i: $desc$mark"
+	incr i
+    done
+fi
+# Abort if requested AID has not been found:
+if [ "z$AID" = "z" ] && [ "z$aidx" != "z" ] ; then
+    if [ "z$ID_MODE" != "z1" ] ; then
+	die "\"$aidx\" audio stream not found"
+    else
+	echo "WARNING: \"$aidx\" audio stream not found" 1>&2
+    fi
+fi
 
 # Find SID by SIDX or select it by default:
 sidm=""		; # matching sid
@@ -1080,7 +1107,8 @@ fi
 
 # Detect max volume and raise it if THRESH_VOL is set:
 if [ "z$ADD_VOL" = "z" ] && [ "z$THRESH_VOL" != "z" ] \
-	&& [ "z$THRESH_VOL" != "znone" ] ; then
+	&& [ "z$THRESH_VOL" != "znone" ] \
+	&& [ "z$AID" != "znone" ] ; then
     ffmpeg="ffmpeg -hide_banner"
     append_ingrps2cmd ffmpeg
     aresample="aresample=\${ARATE}och=2:osf=fltp:ocl=downmix"
@@ -1128,14 +1156,16 @@ ffmpeg="$ffmpeg -map \"\$VID\""
 ffmpeg="$ffmpeg -c:v libx264"
 ffmpeg="$ffmpeg -filter_complex \"null\${VFPRE_OTHER}"
 ffmpeg="$ffmpeg\${VF_SCALE}\${VF_SUBS}\${VF_OTHER}\""
-ffmpeg="$ffmpeg -map \"\$AID\""
-ffmpeg="$ffmpeg -c:a \"\$AC\""
-ffmpeg="$ffmpeg -ac 2"
-ffmpeg="$ffmpeg -af \"\${AFPRE_OTHER}asyncts=min_delta=\$ASD"
-ffmpeg="$ffmpeg,aresample=\${ARATE}och=2:osf=fltp:ocl=downmix"
-ffmpeg="$ffmpeg\${AF_VOL}\${AF_OTHER}\""
-if [ "z$ALANG" != "z" ] ; then
-    ffmpeg="$ffmpeg -metadata:s:a \"language=\$ALANG\""
+if [ "z$AID" != "znone" ] ; then
+    ffmpeg="$ffmpeg -map \"\$AID\""
+    ffmpeg="$ffmpeg -c:a \"\$AC\""
+    ffmpeg="$ffmpeg -ac 2"
+    ffmpeg="$ffmpeg -af \"\${AFPRE_OTHER}asyncts=min_delta=\$ASD"
+    ffmpeg="$ffmpeg,aresample=\${ARATE}och=2:osf=fltp:ocl=downmix"
+    ffmpeg="$ffmpeg\${AF_VOL}\${AF_OTHER}\""
+    if [ "z$ALANG" != "z" ] ; then
+	ffmpeg="$ffmpeg -metadata:s:a \"language=\$ALANG\""
+    fi
 fi
 
 if [ "z$TMP_PASS" = "z" ] ; then
