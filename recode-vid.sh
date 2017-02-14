@@ -847,13 +847,6 @@ if [ "z$AID" = "z" ] ; then
 	    add_in_file "$AIDEXTF"
 	fi
     fi
-    if [ "z$AID" = "z" ] ; then
-	if [ "z$AIDX" != "z" ] || [ "$AIDC" -gt 1 ] ; then
-	    die "\"$aidx\" audio stream not found"
-	else
-	    echo "WARNING: \"$aidx\" audio stream not found" 1>&2
-	fi
-    fi
 fi
 # Print all AIDs:
 if [ "z$AID" != "znone" ] || [ "z$ID_MODE" = "z1" ] ; then
