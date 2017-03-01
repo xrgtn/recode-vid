@@ -1161,7 +1161,12 @@ EOF`"
     fi
 fi
 if [ "z$ADD_VOL" != "z" ] ; then
-    AF_VOL=",volume=volume=+${ADD_VOL}dB"
+    case "$ADD_VOL" in
+	[+-]*) add_vol="$ADD_VOL";;
+	*)     add_vol="+$ADD_VOL";;
+    esac
+    add_vol="${add_vol%[dD][bB]}dB"
+    AF_VOL=",volume=volume=$add_vol"
 fi
 rm -f "$TMP_OUT"
 
