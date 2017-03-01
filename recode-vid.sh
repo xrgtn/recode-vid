@@ -21,6 +21,7 @@ usage() {
 	-subcp	X	assume codepage X for input subtitles [auto]
 	-subss	X	force subs style X (e.g. Fontstyle=40)
 	-tvol	T	set volume threshold at T dB [-0.1]
+	-vc	X	use video codec X [libx264]
 	-vf	F	append video filter F
 	-vfpre	F	prepend video filter F
 	-vid	N	select Nth video stream [0]
@@ -152,6 +153,8 @@ trap eint INT
 
 # video/subtitles params:
 VID="0:v:0"
+VC="libx264"
+X264OPTS="subq=6:frameref=6:me=umh:partitions=all:bframes=1:no8x8dct"
 SID=""		; # subtitles stream id
 SIDX=""		; # subtitles stream selector expression
 SIDTYPE=""	; # subtitles type: "ass" or "srt"
@@ -412,6 +415,10 @@ parse_args() {
 		;;
 	    -tvol)
 		THRESH_VOL="$A"
+		CUR_OPT="none"
+		;;
+	    -vc)
+		VC="$A"
 		CUR_OPT="none"
 		;;
 	    -vf)
@@ -1163,7 +1170,10 @@ append_ingrps2cmd ffmpeg
 ffmpeg="$ffmpeg -map_metadata -1"
 ffmpeg="$ffmpeg -map_chapters -1"
 ffmpeg="$ffmpeg -map \"\$VID\""
-ffmpeg="$ffmpeg -c:v libx264"
+ffmpeg="$ffmpeg -c:v \"\$VC\""
+if [ "z$VC" = "zlibx264" ] ; then
+    ffmpeg="$ffmpeg -x264opts \"\$X264OPTS\""
+fi
 ffmpeg="$ffmpeg -filter_complex \"null\${VFPRE_OTHER}"
 ffmpeg="$ffmpeg\${VF_SCALE}\${VF_SUBS}\${VF_OTHER}\""
 if [ "z$AID" != "znone" ] ; then
