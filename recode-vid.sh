@@ -160,7 +160,9 @@ SDIR=""		; # external subtitles subdirectory
 SUBSS=""	; # forced subtitles style
 SUBS_FILTER=""	; # "ass" "or subtitles"
 VF_SUBS=""	; # "subtitles"/"ass" video filter with params
-VF_SCALE=",scale=w=720:h=ceil(ih*ow/iw/sar/2)*2,setsar=sar=1"
+SCALEW="720"
+SCALEH=""
+VF_SCALE=""
 VF_OTHER=""	; # other video filters to append
 VFPRE_OTHER=""	; # other video filters to prepend
 # audio params:
@@ -389,7 +391,7 @@ parse_args() {
 		CUR_OPT="none"
 		;;
 	    -h)
-		VF_SCALE=",scale=h=$A:w=ceil(iw*oh/ih/sar/2)*2,setsar=sar=1"
+		SCALEH="$A"
 		CUR_OPT="none"
 		;;
 	    -sid)
@@ -434,7 +436,7 @@ parse_args() {
 		CUR_OPT="none"
 		;;
 	    -w)
-		VF_SCALE=",scale=w=$A:h=ceil(ih*ow/iw/sar/2)*2,setsar=sar=1"
+		SCALEW="$A"
 		CUR_OPT="none"
 		;;
 	    -*)
@@ -506,6 +508,21 @@ parse_args() {
 	fi
     fi
 }
+
+# Generate VF_SCALE filter string from SCALEW/SCALEH:
+if [ "z$SCALEW" != "z" ] ; then
+    if [ "z$SCALEH" != "z" ] ; then
+	VF_SCALE=",scale=w=$SCALEW:h=$SCALEH"
+    else
+	VF_SCALE=",scale=w=$SCALEW:h=ceil(ih*ow/iw/sar/2)*2"
+    fi
+    VF_SCALE="$VF_SCALE,setsar=sar=1"
+else
+    if [ "z$SCALEH" != "z" ] ; then
+	VF_SCALE=",scale=h=$SCALEH:w=ceil(iw*oh/ih/sar/2)*2"
+	VF_SCALE="$VF_SCALE,setsar=sar=1"
+    fi
+fi
 
 # Read data with leading whitespace:
 readw() {
