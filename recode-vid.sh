@@ -514,22 +514,22 @@ parse_args() {
 	    usage "${0##*/}"
 	fi
     fi
-}
 
-# Generate VF_SCALE filter string from SCALEW/SCALEH:
-if [ "z$SCALEW" != "z" ] ; then
-    if [ "z$SCALEH" != "z" ] ; then
-	VF_SCALE=",scale=w=$SCALEW:h=$SCALEH"
-    else
-	VF_SCALE=",scale=w=$SCALEW:h=ceil(ih*ow/iw/sar/2)*2"
-    fi
-    VF_SCALE="$VF_SCALE,setsar=sar=1"
-else
-    if [ "z$SCALEH" != "z" ] ; then
-	VF_SCALE=",scale=h=$SCALEH:w=ceil(iw*oh/ih/sar/2)*2"
+    # Generate VF_SCALE filter string from SCALEW/SCALEH:
+    if [ "z$SCALEW" != "z" ] ; then
+	if [ "z$SCALEH" != "z" ] ; then
+	    VF_SCALE=",scale=w=$SCALEW:h=$SCALEH"
+	else
+	    VF_SCALE=",scale=w=$SCALEW:h=ceil(ih*ow/iw/sar/2)*2"
+	fi
 	VF_SCALE="$VF_SCALE,setsar=sar=1"
+    else
+	if [ "z$SCALEH" != "z" ] ; then
+	    VF_SCALE=",scale=h=$SCALEH:w=ceil(iw*oh/ih/sar/2)*2"
+	    VF_SCALE="$VF_SCALE,setsar=sar=1"
+	fi
     fi
-fi
+}
 
 # Read data with leading whitespace:
 readw() {
