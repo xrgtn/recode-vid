@@ -426,7 +426,7 @@ parse_args() {
 		CUR_OPT="none"
 		;;
 	    -vfpre)
-		VFPRE_OTHER="$VFPRE_OTHER,$A"
+		VFPRE_OTHER="$VFPRE_OTHER$A,"
 		CUR_OPT="none"
 		;;
 	    -vid)
@@ -1179,7 +1179,7 @@ ffmpeg="$ffmpeg -c:v \"\$VC\""
 if [ "z$VC" = "zlibx264" ] ; then
     ffmpeg="$ffmpeg -x264opts \"\$X264OPTS\""
 fi
-ffmpeg="$ffmpeg -filter_complex \"null\${VFPRE_OTHER}"
+ffmpeg="$ffmpeg -filter_complex \"\${VFPRE_OTHER}hqdn3d=2:1:2"
 ffmpeg="$ffmpeg\${VF_SCALE}\${VF_SUBS}\${VF_OTHER}\""
 if [ "z$AID" != "znone" ] ; then
     ffmpeg="$ffmpeg -map \"\$AID\""
