@@ -27,6 +27,9 @@ usage() {
 	-vid	N	select Nth video stream [0]
 	-vol	A	increase volume by A dB
 	-w	W	scale to width W [720]
+	-x264opts O	set x264 options [subme=9:ref=4:bframes=1:
+			me=umh:partitions=all:no8x8dct:
+			b-pyramid=strict]
 	-y		overwrite output file [-y]"
     exit 1
 }
@@ -154,7 +157,8 @@ trap eint INT
 # video/subtitles params:
 VID="0:v:0"
 VC="libx264"
-X264OPTS="subq=6:frameref=6:me=umh:partitions=all:bframes=1:no8x8dct"
+X264OPTS="subme=9:ref=4:bframes=1:me=umh:partitions=all:no8x8dct"
+X264OPTS="$X264OPTS:b-pyramid=strict"
 SID=""		; # subtitles stream id
 SIDX=""		; # subtitles stream selector expression
 SIDTYPE=""	; # subtitles type: "ass" or "srt"
@@ -444,6 +448,10 @@ parse_args() {
 		;;
 	    -w)
 		SCALEW="$A"
+		CUR_OPT="none"
+		;;
+	    -x264opts)
+		X264OPTS="$A"
 		CUR_OPT="none"
 		;;
 	    -*)
@@ -1176,7 +1184,7 @@ ffmpeg="$ffmpeg -map_metadata -1"
 ffmpeg="$ffmpeg -map_chapters -1"
 ffmpeg="$ffmpeg -map \"\$VID\""
 ffmpeg="$ffmpeg -c:v \"\$VC\""
-if [ "z$VC" = "zlibx264" ] ; then
+if [ "z$VC" = "zlibx264" ] && [ "z$X264OPTS" != "z" ] ; then
     ffmpeg="$ffmpeg -x264opts \"\$X264OPTS\""
 fi
 ffmpeg="$ffmpeg -filter_complex \"\${VFPRE_OTHER}hqdn3d=2:1:2"
