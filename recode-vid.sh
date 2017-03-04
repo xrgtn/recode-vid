@@ -29,7 +29,7 @@ usage() {
 	-w	W	scale to width W [720]
 	-x264opts O	set x264 options [subme=9:ref=4:bframes=1:
 			me=umh:partitions=all:no8x8dct:
-			b-pyramid=strict:bluray-compat=1]
+			b-pyramid=strict:bluray-compat]
 	-y		overwrite output file [-y]"
     exit 1
 }
@@ -158,7 +158,7 @@ trap eint INT
 VID="0:v:0"
 VC="libx264"
 X264OPTS="subme=9:ref=4:bframes=1:me=umh:partitions=all:no8x8dct"
-X264OPTS="$X264OPTS:b-pyramid=strict:bluray-compat=1"
+X264OPTS="$X264OPTS:b-pyramid=strict:bluray-compat"
 SID=""		; # subtitles stream id
 SIDX=""		; # subtitles stream selector expression
 SIDTYPE=""	; # subtitles type: "ass" or "srt"
