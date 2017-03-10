@@ -73,6 +73,18 @@ sub tm2hmsms($) {
     return ($h, $m, $s, $ms);
 };
 
+sub parse_hmsms_tm($) {
+    my ($str) = @_;
+    die "invalid h:m:s.ms - '$str'\n"
+	if $str !~ /\A\s*(?:(?:(\d+):)?(\d+):)?(\d+)
+	    (?:[.,](\d{1,3}))?\s*\z/x;
+    my ($h, $m, $s, $ms) = ($1, $2, $3, $4);
+    $h  = 0 unless defined $h;
+    $m  = 0 unless defined $m;
+    $ms = 0 unless defined $ms;
+    return hmsms2tm($h, $m, $s, $ms);
+};
+
 foreach (@ARGV) {
     my ($h0, $m0, $s0, $ms0, $dtm);
     if (/\A\s*(?:(?:(\d+):)?(\d+):)?(\d+)(?:[.,](\d{1,3}))?
@@ -107,12 +119,65 @@ foreach (@ARGV) {
     push @delay_rules, [hmsms2tm($h0, $m0, $s0, $ms0), $dtm];
 };
 
-my $state = "init";
+my $state = "init0";
+my $format;
+my $fno;
+my $bom = "\xEF\xBB\xBF|\xFE\xFF|\xFF\xFE";
 
 while (<STDIN>) {
-    if ($state eq "init" and /\A\s*\d+\s*\z/) {
+    if ($state =~ /\Ainit/ and /\A\s*\d+\s*\z/) {
 	print $_;
 	$state = "time";
+    } elsif ($state =~ /\Ainit|\Assa/
+	    and /\A\s*\[(.*)\]\s*\z/i
+	    or $state eq "init0"
+	    and /\A(?:$bom)\s*\[(.*)\]\s*\z/i) {
+	print $_;
+	$state = ($1 =~ /events/i) ? "ssaevents" : "ssaxx";
+    } elsif ($state eq "init0") {
+	print $_;
+	$state = "init";
+    } elsif ($state eq "ssaevents"
+	    and /\A\s*Format\s*:\s*(.*\S)\s*\z/i) {
+	$format = $1;
+	undef $fno;
+	my $i = 0;
+	foreach my $hdr (split /\s*,\s*/, $format) {
+	    $fno->{lc($hdr)} = $i++;
+	};
+	foreach my $k (qw(start end)) {
+	    die "missing \"$k\" field in events format\n"
+		if not defined $fno->{$k};
+	};
+	print $_;
+    } elsif ($state =~ /\Assa/ and defined $format
+	    and /\A(\s*Dialogue\s*:\s*)(.*\S)(\s*)\z/i) {
+	# Parse and shift start/end times:
+	my ($pfx, $f, $crlf) = ($1, $2, $3);
+	my @fields = split /\s*,\s*/, $f, scalar(keys(%$fno));
+	foreach my $k (qw(start end)) {
+	    die "missing field $fno->{$k} ($k) in dialogue event\n"
+		if $fno->{$k} > scalar @fields;
+	};
+	my $tm0 = parse_hmsms_tm($fields[$fno->{start}]);
+	my $tm1 = parse_hmsms_tm($fields[$fno->{end}]);
+	my $dtm;
+	foreach my $delay (@delay_rules) {
+	    $dtm = $delay->[1] if cmp_tm($tm0, $delay->[0]) >= 0;
+	};
+	if (defined $dtm) {
+	    my @tm0d = tm2hmsms(add_tm($tm0, $dtm));
+	    my @tm1d = tm2hmsms(add_tm($tm1, $dtm));
+	    $fields[$fno->{start}] = sprintf "%i:%02i:%02i.%02i",
+		$tm0d[0], $tm0d[1], $tm0d[2], $tm0d[3] / 10;
+	    $fields[$fno->{end}]   = sprintf "%i:%02i:%02i.%02i",
+		$tm1d[0], $tm1d[1], $tm1d[2], $tm1d[3] / 10;
+	    print $pfx.join(",", @fields).$crlf;
+	} else {
+	    print $_;
+	};
+    } elsif ($state =~ /\Assa/) {
+	print $_;
     } elsif ($state eq "time") {
 	die "invalid event time: $_"
 	    unless /\A\s*(\d\d):(\d\d):(\d\d),(\d{1,3})\s*-->\s*
