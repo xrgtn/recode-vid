@@ -19,7 +19,7 @@ usage() {
 	-sdir	D	external subtitles subdirectory
 	-sid	X	subtitles stream selector [default|0]
 	-subcp	X	assume codepage X for input subtitles [auto]
-	-subss	X	force subs style X (e.g. Fontstyle=40)
+	-subss	X	force subs style X (e.g. 'fontsize=24')
 	-tvol	T	set volume threshold at T dB [-0.1]
 	-vc	X	use video codec X [libx264]
 	-vf	F	append video filter F
@@ -415,6 +415,12 @@ parse_args() {
 		;;
 	    -subss)
 		SUBSS="$A"
+		# XXX: when -subss contains commas or colons,
+		# it must be enclosed in single quotes:
+		case "$SUBSS" in
+		    \'*) ;;
+		    *[:,]*) SUBSS="'$SUBSS'" ;;
+		esac
 		CUR_OPT="none"
 		;;
 	    -tvol)
