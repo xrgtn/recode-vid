@@ -801,13 +801,15 @@ if [ "z$AID" != "znone" ] || [ "z$SID" != "znone" ] \
 	if [ "z$sdir" != "z" ] ; then
 	    find "$sdir" -name "$find_prefix*.ass" \
 		-o -name "$find_prefix*.ASS" \
+		-o -name "$find_prefix*.ssa" \
+		-o -name "$find_prefix*.SSA" \
 		-o -name "$find_prefix*.srt" \
 		-o -name "$find_prefix*.SRT" | sort >"$TMP_OUT"
 	    while readw f ; do
 		if [ -f "$f" ] || [ -h "$f" ] ; then
 		    # store .ass/.srt file name in SUBSxx variable:
 		    case "$f" in
-			*.ass|*.ASS) typ="ass";;
+			*.ass|*.ASS|*.ssa|*.SSA) typ="ass";;
 			*.srt|*.SRT) typ="srt";;
 		    esac
 		    if [ "z$typ" != "z" ] ; then
