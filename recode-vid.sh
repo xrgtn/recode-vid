@@ -13,6 +13,7 @@ usage() {
 	-arate	R	set audio rate R
 	-asd	S	set asyncts min_delta to S [0.3]
 	-h	H	scale to height H
+	-hqdn3d L:C:T	set hqdn3d parameters [2:1:2]
 	-id		print info on audio/subs IDs
 	-n		don't overwrite output file [-y]
 	-noass		don't use \"ass\" filter for subs
@@ -157,6 +158,7 @@ trap eint INT
 # video/subtitles params:
 VID="0:v:0"
 VC="libx264"
+HQDN3D="2:1:2"	; # parameters for hqdn3d filter
 X264OPTS="subme=9:ref=4:bframes=1:me=umh:partitions=all:no8x8dct"
 X264OPTS="$X264OPTS:b-pyramid=strict:bluray-compat"
 SID=""		; # subtitles stream id
@@ -399,6 +401,16 @@ parse_args() {
 		;;
 	    -h)
 		SCALEH="$A"
+		CUR_OPT="none"
+		;;
+	    -hqdn3d)
+		if expr "z$A" : \
+		    'z[0-9][0-9]*:[0-9][0-9]*:[0-9][0-9]*$' \
+		    >/dev/null ; then
+		    HQDN3D="$A"
+		else
+		    die "invalid -hqdn3d $A"
+		fi
 		CUR_OPT="none"
 		;;
 	    -sid)
@@ -1195,7 +1207,7 @@ ffmpeg="$ffmpeg -c:v \"\$VC\""
 if [ "z$VC" = "zlibx264" ] && [ "z$X264OPTS" != "z" ] ; then
     ffmpeg="$ffmpeg -x264opts \"\$X264OPTS\""
 fi
-ffmpeg="$ffmpeg -filter_complex \"\${VFPRE_OTHER}hqdn3d=2:1:2"
+ffmpeg="$ffmpeg -filter_complex \"\${VFPRE_OTHER}hqdn3d=\${HQDN3D}"
 ffmpeg="$ffmpeg\${VF_SCALE}\${VF_SUBS}\${VF_OTHER}\""
 if [ "z$AID" != "znone" ] ; then
     ffmpeg="$ffmpeg -map \"\$AID\""
