@@ -1150,19 +1150,19 @@ if [ "z$ID_MODE" = "z1" ] ; then
     exit 0
 fi
 
+aresample="aresample=\${ARATE}och=2:osf=fltp:ocl=downmix:async=4000"
+asyncts="asyncts=min_delta=\${ASD}"
+
 # Detect max volume and raise it if THRESH_VOL is set:
 if [ "z$ADD_VOL" = "z" ] && [ "z$THRESH_VOL" != "z" ] \
 	&& [ "z$THRESH_VOL" != "znone" ] \
 	&& [ "z$AID" != "znone" ] ; then
     ffmpeg="ffmpeg -hide_banner"
     append_ingrps2cmd ffmpeg
-    aresample="aresample=\${ARATE}och=2:osf=fltp:ocl=downmix"
-    asyncts="asyncts=min_delta=\$ASD"
     teelog="2>&1 | tee \"\$TMP_OUT\""
     ffmpeg="$ffmpeg -map_metadata -1 -map_chapters -1 -sn -vn"
     ffmpeg="$ffmpeg -map \"\$AID\" -c:a \"\$AC\""
-    ffmpeg="$ffmpeg -af \"\${AFPRE_OTHER}asyncts=min_delta=\$ASD"
-    ffmpeg="$ffmpeg,aresample=\${ARATE}och=2:osf=fltp:ocl=downmix"
+    ffmpeg="$ffmpeg -af \"\${AFPRE_OTHER}$asyncts,$aresample"
     ffmpeg="$ffmpeg,volumedetect\$AF_OTHER\" -f matroska -y /dev/null"
     append_tgrp2cmd ffmpeg
     run_ffmpeg "$ffmpeg" "$TMP_OUT" 4
@@ -1213,8 +1213,7 @@ if [ "z$AID" != "znone" ] ; then
     ffmpeg="$ffmpeg -map \"\$AID\""
     ffmpeg="$ffmpeg -c:a \"\$AC\""
     ffmpeg="$ffmpeg -ac 2"
-    ffmpeg="$ffmpeg -af \"\${AFPRE_OTHER}asyncts=min_delta=\$ASD"
-    ffmpeg="$ffmpeg,aresample=\${ARATE}och=2:osf=fltp:ocl=downmix"
+    ffmpeg="$ffmpeg -af \"\${AFPRE_OTHER}$asyncts,$aresample"
     ffmpeg="$ffmpeg\${AF_VOL}\${AF_OTHER}\""
     if [ "z$ALANG" != "z" ] ; then
 	ffmpeg="$ffmpeg -metadata:s:a \"language=\$ALANG\""
