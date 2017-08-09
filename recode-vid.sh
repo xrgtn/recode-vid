@@ -157,8 +157,7 @@ trap eint INT
 
 # video/subtitles params:
 VID="0:v:0"
-OUTVC=""	; # default output video codec
-OUTMUX=""	; # default output muxer format
+OUTVC=""	; # user forced output video codec
 HQDN3D="2:1:2"	; # parameters for hqdn3d filter
 X264OPTS="subme=9:ref=4:bframes=1:me=umh:partitions=all:no8x8dct"
 X264OPTS="$X264OPTS:b-pyramid=strict:bluray-compat"
@@ -176,7 +175,7 @@ VF_SCALE=""
 VF_OTHER=""	; # other video filters to append
 VFPRE_OTHER=""	; # other video filters to prepend
 # audio params:
-OUTAC=""	; # default output audio codec
+OUTAC=""	; # user forced output audio codec
 AID=""		; # audio stream id
 AIDX=""		; # audio stream selector expression
 ARATE=""
@@ -292,9 +291,6 @@ add_out_file() {
     fi
     if [ "z$OUTVC" != "z" ] ; then
 	eval "OUT${OUTC}VC=\"\$OUTVC\""
-    fi
-    if [ "z$OUTMUX" != "z" ] ; then
-	eval "OUT${OUTC}MUX=\"\$OUTMUX\""
     fi
     next_grp "OUT${OUTC}"
     incr OUTC
