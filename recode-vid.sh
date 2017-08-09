@@ -157,7 +157,8 @@ trap eint INT
 
 # video/subtitles params:
 VID="0:v:0"
-VC="libx264"
+OUTVC=""	; # default output video codec
+OUTMUX=""	; # default output muxer format
 HQDN3D="2:1:2"	; # parameters for hqdn3d filter
 X264OPTS="subme=9:ref=4:bframes=1:me=umh:partitions=all:no8x8dct"
 X264OPTS="$X264OPTS:b-pyramid=strict:bluray-compat"
@@ -175,9 +176,9 @@ VF_SCALE=""
 VF_OTHER=""	; # other video filters to append
 VFPRE_OTHER=""	; # other video filters to prepend
 # audio params:
+OUTAC=""	; # default output audio codec
 AID=""		; # audio stream id
 AIDX=""		; # audio stream selector expression
-AC="libvorbis"	; # audio codec
 ARATE=""
 ASD="0.3"	; # asyncts min_delta [0.3s]. You need to increase it
 		  # if you get messages like "[Parsed_asyncts_0 @
@@ -269,6 +270,32 @@ add_out_file() {
     fi
     eval "OUT${OUTC}GRP=\"\$GRPC\""
     eval "OUT${OUTC}=\"\$fname\""
+    case "$fname" in
+	*.[mM][pP]4)
+	    eval "OUT${OUTC}AC=\"libfaac\""
+	    eval "OUT${OUTC}VC=\"libx264\""
+	    eval "OUT${OUTC}MUX=\"mp4\""
+	    ;;
+	*.[wW][eE][bB][mM])
+	    eval "OUT${OUTC}AC=\"libvorbis\""
+	    eval "OUT${OUTC}VC=\"vp8\""
+	    eval "OUT${OUTC}MUX=\"webm\""
+	    ;;
+	*.[mM][kK][vV]|*)
+	    eval "OUT${OUTC}AC=\"libvorbis\""
+	    eval "OUT${OUTC}VC=\"libx264\""
+	    eval "OUT${OUTC}MUX=\"matroska\""
+	    ;;
+    esac
+    if [ "z$OUTAC" != "z" ] ; then
+	eval "OUT${OUTC}AC=\"\$OUTAC\""
+    fi
+    if [ "z$OUTVC" != "z" ] ; then
+	eval "OUT${OUTC}VC=\"\$OUTVC\""
+    fi
+    if [ "z$OUTMUX" != "z" ] ; then
+	eval "OUT${OUTC}MUX=\"\$OUTMUX\""
+    fi
     next_grp "OUT${OUTC}"
     incr OUTC
     TGRPN=""
@@ -372,7 +399,7 @@ parse_args() {
 	shift
 	case "$CUR_OPT" in
 	    -ac)
-		AC="$A"
+		OUTAC="$A"
 		CUR_OPT="none"
 		;;
 	    -af)
@@ -440,7 +467,7 @@ parse_args() {
 		CUR_OPT="none"
 		;;
 	    -vc)
-		VC="$A"
+		OUTVC="$A"
 		CUR_OPT="none"
 		;;
 	    -vf)
@@ -1150,6 +1177,10 @@ if [ "z$ID_MODE" = "z1" ] ; then
     exit 0
 fi
 
+# The async=4000 (4000 samples) parameter to aresample filter is
+# necessary to enable sound stretching/squeezing to match video
+# timestamps. Otherwize the resulting vide will more often than not
+# have audible "clicks" every several seconds.
 aresample="aresample=\${ARATE}och=2:osf=fltp:ocl=downmix:async=4000"
 asyncts="asyncts=min_delta=\${ASD}"
 
@@ -1161,9 +1192,11 @@ if [ "z$ADD_VOL" = "z" ] && [ "z$THRESH_VOL" != "z" ] \
     append_ingrps2cmd ffmpeg
     teelog="2>&1 | tee \"\$TMP_OUT\""
     ffmpeg="$ffmpeg -map_metadata -1 -map_chapters -1 -sn -vn"
-    ffmpeg="$ffmpeg -map \"\$AID\" -c:a \"\$AC\""
+    ffmpeg="$ffmpeg -map \"\$AID\" -c:a \"\$OUT0AC\""
     ffmpeg="$ffmpeg -af \"\${AFPRE_OTHER}$asyncts,$aresample"
-    ffmpeg="$ffmpeg,volumedetect\$AF_OTHER\" -f matroska -y /dev/null"
+    ffmpeg="$ffmpeg,volumedetect\${AF_OTHER}\""
+    append_grp2cmd "$OUT0GRP" ffmpeg
+    ffmpeg="$ffmpeg -f \"\$OUT0MUX\" -y /dev/null"
     append_tgrp2cmd ffmpeg
     run_ffmpeg "$ffmpeg" "$TMP_OUT" 4
     MAX_VOL=""
@@ -1203,15 +1236,15 @@ append_ingrps2cmd ffmpeg
 ffmpeg="$ffmpeg -map_metadata -1"
 ffmpeg="$ffmpeg -map_chapters -1"
 ffmpeg="$ffmpeg -map \"\$VID\""
-ffmpeg="$ffmpeg -c:v \"\$VC\""
-if [ "z$VC" = "zlibx264" ] && [ "z$X264OPTS" != "z" ] ; then
+ffmpeg="$ffmpeg -c:v \"\$OUT0VC\""
+if [ "z$OUT0VC" = "zlibx264" ] && [ "z$X264OPTS" != "z" ] ; then
     ffmpeg="$ffmpeg -x264opts \"\$X264OPTS\""
 fi
 ffmpeg="$ffmpeg -filter_complex \"\${VFPRE_OTHER}hqdn3d=\${HQDN3D}"
 ffmpeg="$ffmpeg\${VF_SCALE}\${VF_SUBS}\${VF_OTHER}\""
 if [ "z$AID" != "znone" ] ; then
     ffmpeg="$ffmpeg -map \"\$AID\""
-    ffmpeg="$ffmpeg -c:a \"\$AC\""
+    ffmpeg="$ffmpeg -c:a \"\$OUT0AC\""
     ffmpeg="$ffmpeg -ac 2"
     ffmpeg="$ffmpeg -af \"\${AFPRE_OTHER}$asyncts,$aresample"
     ffmpeg="$ffmpeg\${AF_VOL}\${AF_OTHER}\""
