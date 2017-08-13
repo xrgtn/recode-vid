@@ -169,7 +169,7 @@ SDIR=""		; # external subtitles subdirectory
 SUBSS=""	; # forced subtitles style
 SUBS_FILTER=""	; # "ass" "or subtitles"
 VF_SUBS=""	; # "subtitles"/"ass" video filter with params
-SCALEW="720"
+SCALEW=""
 SCALEH=""
 VF_SCALE=""
 VF_OTHER=""	; # other video filters to append
@@ -576,6 +576,9 @@ parse_args() {
 	if [ "z$SCALEH" != "z" ] ; then
 	    VF_SCALE=",scale=h=$SCALEH:w=ceil(iw*oh/ih/sar/2)*2"
 	    VF_SCALE="$VF_SCALE,setsar=sar=1"
+	else
+	    SCALEW=720
+	    VF_SCALE=",scale=w=$SCALEW:h=ceil(ih*ow/iw/sar/2)*2"
 	fi
     fi
 }
