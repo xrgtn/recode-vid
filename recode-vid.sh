@@ -174,6 +174,7 @@ SCALEH=""
 VF_SCALE=""
 VF_OTHER=""	; # other video filters to append
 VFPRE_OTHER=""	; # other video filters to prepend
+PIXFMT=""
 # audio params:
 OUTAC=""	; # user forced output audio codec
 AID=""		; # audio stream id
@@ -434,6 +435,10 @@ parse_args() {
 		else
 		    die "invalid -hqdn3d $A"
 		fi
+		CUR_OPT="none"
+		;;
+	    -pix_fmt)
+		PIXFMT="$A"
 		CUR_OPT="none"
 		;;
 	    -sid)
@@ -1250,6 +1255,9 @@ if [ "z$AID" != "znone" ] ; then
     if [ "z$ALANG" != "z" ] ; then
 	ffmpeg="$ffmpeg -metadata:s:a \"language=\$ALANG\""
     fi
+fi
+if [ "z$PIXFMT" != "z" ] ; then
+    ffmpeg="$ffmpeg -pix_fmt \"\$PIXFMT\""
 fi
 
 if [ "z$TMP_PASS" = "z" ] ; then
