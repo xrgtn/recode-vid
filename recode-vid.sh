@@ -582,8 +582,10 @@ parse_args() {
 	    VF_SCALE=",scale=h=$SCALEH:w=ceil(iw*oh/ih/sar/2)*2"
 	    VF_SCALE="$VF_SCALE,setsar=sar=1"
 	else
+	    # XXX: scale to 720xNNN by default:
 	    SCALEW=720
 	    VF_SCALE=",scale=w=$SCALEW:h=ceil(ih*ow/iw/sar/2)*2"
+	    VF_SCALE="$VF_SCALE,setsar=sar=1"
 	fi
     fi
 }
