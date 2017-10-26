@@ -15,6 +15,7 @@ usage() {
 	-h	H	scale to height H
 	-hqdn3d L:C:T	set hqdn3d parameters [2:1:2]
 	-id		print info on audio/subs IDs
+	-ignsmw		ignore \"something may be wrong\"
 	-n		don't overwrite output file [-y]
 	-noass		don't use \"ass\" filter for subs
 	-sdir	D	external subtitles subdirectory
@@ -190,6 +191,7 @@ THRESH_VOL="-0.1" ; # volume threshold for autoincrease
 AF_VOL=""	; # "volume" audio filter
 AF_OTHER=""	; # other audio filters to append
 AFPRE_OTHER=""	; # other audio filters to prepend
+IGNSMW=""	; # ignore "NNN buffers queued: something may be wrong"
 # other params:
 ID_MODE=""	; # "identify AIDs/SIDs" mode (-id)
 OVWR_OUT="-y"	; # "overwrite output file" option
@@ -526,6 +528,9 @@ parse_args() {
 		case "$A" in
 		    -id)
 			ID_MODE="1"
+			;;
+		    -ignsmw)
+			IGNSMW="1"
 			;;
 		    -n) OVWR_OUT="-n" ;;
 		    -noass)
@@ -1224,7 +1229,9 @@ EOF`"
     # XXX : check for "[output stream 0:0 @ 0x7cbc80] 100 buffers queued
     # in output stream 0:0, something may be wrong." messages:
     if grep "something may be wrong" "$TMP_OUT" >/dev/null ; then
-	die "something may be wrong"
+	if [ "z$IGNSMW" != "z1" ] ; then
+	    die "something may be wrong"
+	fi
     fi
 fi
 if [ "z$ADD_VOL" != "z" ] ; then
