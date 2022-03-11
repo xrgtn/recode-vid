@@ -15,7 +15,6 @@ usage() {
 	-h	H	scale to height H
 	-hqdn3d L:C:T	set hqdn3d parameters [2:1:2]
 	-id		print info on audio/subs IDs
-	-ignsmw		ignore \"something may be wrong\"
 	-n		don't overwrite output file [-y]
 	-noass		don't use \"ass\" filter for subs
 	-sdir	D	external subtitles subdirectory
@@ -136,7 +135,7 @@ TMP_PASS=""	; # temporary file for 2- or 3-pass encoding
 TMP_SUBS=""	; # temporary file or symlink for subtitles
 
 die() {
-    rm -f "${TMPF}".*
+    rm -rf "${TMPF}".*
     E=1
     if [ 0 -lt $# ] && expr "z$1" : 'z[0-9][0-9]*$' >/dev/null ; then
 	E="$1"
@@ -149,7 +148,7 @@ die() {
 }
 
 eint() {
-    rm -f "${TMPF}".*
+    rm -rf "${TMPF}".*
     # revert to default INT handler and resend INT to self:
     trap - INT
     kill -INT $$
@@ -176,6 +175,7 @@ VF_SCALE=""
 VF_OTHER=""	; # other video filters to append
 VFPRE_OTHER=""	; # other video filters to prepend
 PIXFMT=""
+EMBEDDED_FONTS=1 ; # use embedded fonts
 # audio params:
 OUTAC=""	; # user forced output audio codec
 AID=""		; # audio stream id
@@ -191,8 +191,11 @@ THRESH_VOL="-0.1" ; # volume threshold for autoincrease
 AF_VOL=""	; # "volume" audio filter
 AF_OTHER=""	; # other audio filters to append
 AFPRE_OTHER=""	; # other audio filters to prepend
-IGNSMW=""	; # ignore "NNN buffers queued: something may be wrong"
 # other params:
+ANALYZEDURATION="-analyzeduration 9223370000000000000"
+		  # analyzeduration: [0 - 9.22337e+18]
+PROBESIZE="-probesize 9223370000000000000"
+		  # probesize: [32 - 9.22337e+18]
 ID_MODE=""	; # "identify AIDs/SIDs" mode (-id)
 OVWR_OUT="-y"	; # "overwrite output file" option
 ARG_CNT=0	; # arguments counter
@@ -207,6 +210,7 @@ TGRPN=""	; # tail group number
 VIDC=0		; # video streams counter
 AIDC=0		; # audio streams counter
 SIDC=0		; # subtitles streams counter
+FIDC=0		; # embedded/attached fonts counter
 
 incr() {
     if ! expr "z$1" : 'z[A-Za-z_][A-Za-z_0-9]*$' >/dev/null ; then
@@ -274,7 +278,8 @@ add_out_file() {
     eval "OUT${OUTC}=\"\$fname\""
     case "$fname" in
 	*.[mM][pP]4)
-	    eval "OUT${OUTC}AC=\"libfaac\""
+	    #eval "OUT${OUTC}AC=\"libfaac\""
+	    eval "OUT${OUTC}AC=\"aac\""
 	    eval "OUT${OUTC}VC=\"libx264\""
 	    eval "OUT${OUTC}MUX=\"mp4\""
 	    ;;
@@ -460,7 +465,7 @@ parse_args() {
 		# XXX: when -subss contains commas or colons,
 		# it must be enclosed in single quotes:
 		case "$SUBSS" in
-		    \'*) ;;
+		    \'*) ;;	#XXX'
 		    *[:,]*) SUBSS="'$SUBSS'" ;;
 		esac
 		CUR_OPT="none"
@@ -529,14 +534,15 @@ parse_args() {
 		    -id)
 			ID_MODE="1"
 			;;
-		    -ignsmw)
-			IGNSMW="1"
-			;;
 		    -n) OVWR_OUT="-n" ;;
 		    -noass)
 			SUBS_FILTER="subtitles"
 			;;
 		    -y) OVWR_OUT="-y" ;;
+		    -fix_sub_duration)
+			eval "G${GRPC}A${ARGC}=\"\$A\""
+			incr ARGC
+			;;
 		    -*)
 			CUR_OPT="$A"
 			;;
@@ -587,7 +593,6 @@ parse_args() {
 	    VF_SCALE=",scale=h=$SCALEH:w=ceil(iw*oh/ih/sar/2)*2"
 	    VF_SCALE="$VF_SCALE,setsar=sar=1"
 	else
-	    # XXX: scale to 720xNNN by default:
 	    SCALEW=720
 	    VF_SCALE=",scale=w=$SCALEW:h=ceil(ih*ow/iw/sar/2)*2"
 	    VF_SCALE="$VF_SCALE,setsar=sar=1"
@@ -684,7 +689,7 @@ run_ffmpeg() {
 ifs0="$IFS"
 IFS=":"
 for f in bc cat cp expr ffmpeg find grep iconv mkdir mv perl pwd rm \
-    sort tee ; do
+    sed sort tee ; do
     x=0
     for p in $PATH ; do
 	if [ -x "$p/$f" ] ; then
@@ -700,9 +705,9 @@ parse_args "$@"
 
 # Detect internal & external stream IDs:
 if [ "z$AID" != "znone" ] || [ "z$SID" != "znone" ] \
-    || [ "z$ID_MODE" = "z1" ] ; then
+    || [ "z$ID_MODE" = "z1" ] || [ "z$EMBEDDED_FONTS" = "z1" ] ; then
     # Detect internal video/audio/subtitles stream IDs:
-    ffmpeg="ffmpeg -hide_banner"
+    ffmpeg="ffmpeg -hide_banner $ANALYZEDURATION $PROBESIZE"
     append_ins2cmd ffmpeg
     run_ffmpeg "$ffmpeg" "$TMP_OUT" 0
     state=""
@@ -721,14 +726,17 @@ if [ "z$AID" != "znone" ] || [ "z$SID" != "znone" ] \
 	    \ \ \ \ Stream\ \#*:\ Video:\ *) state="Video";;
 	    \ \ \ \ Stream\ \#*:\ Audio:\ *) state="Audio";;
 	    \ \ \ \ Stream\ \#*:\ Subtitle:\ *) state="Subtitle";;
+	    \ \ \ \ Stream\ \#*:\ Attachment:\ *) state="Attachment";;
 	    \ \ \ \ Metadata:)
-		if ! expr "z$state" : 'z[AVS]ID[0-9][0-9]*DESC$' \
+		if ! expr "z$state" : 'z[AVSF]ID[0-9][0-9]*DESC$' \
 		    >/dev/null ; then
 		    state="meta"
+		    unset desc
+		    unset id
 		fi
 		;;
 	    \ \ \ \ \ \ ????????????????:\ *)
-		if expr "z$state" : 'z[AVS]ID[0-9][0-9]*DESC$' \
+		if expr "z$state" : 'z[AVSF]ID[0-9][0-9]*DESC$' \
 		    >/dev/null ; then
 		    key="${L%%:*}"
 		    val="${L#*: }"
@@ -738,13 +746,25 @@ if [ "z$AID" != "znone" ] || [ "z$SID" != "znone" ] \
 			key="${key# }"
 			incr i
 		    done
+		    # E.g. if state=VID0DESC, key:val will be appended
+		    # to VID0DESC:
 		    eval "$state=\"\$$state, \$key:\$val\""
+		    case "$key" in
+			filename)
+			    eval "${state%DESC}FNAME=\"\$val\""
+			    ;;
+		    esac
+		    unset key
+		    unset val
 		fi
 		;;
-	    *)  state="";;
+	    *)  state=""
+		unset desc
+		unset id
+		;;
 	esac
 	case "$state" in
-	    Video|Audio|Subtitle)
+	    Video|Audio|Subtitle|Attachment)
 		desc="${L#    Stream #}"
 		id0="${desc%%: $state: *}"
 		desc="${desc#*: $state: }"
@@ -762,6 +782,7 @@ if [ "z$AID" != "znone" ] || [ "z$SID" != "znone" ] \
 		eval "VID$VIDC=\"\$id\""
 		eval "VID${VIDC}DESC=\"\$bname, int.stream#\$id0," \
 		    "\$desc\""
+		unset id0
 		case "$desc" in *\ \(default\)) VIDDEF="$VIDC" ;; esac
 		state="VID${VIDC}DESC"
 		incr VIDC
@@ -770,6 +791,7 @@ if [ "z$AID" != "znone" ] || [ "z$SID" != "znone" ] \
 		eval "AID$AIDC=\"\$id\""
 		eval "AID${AIDC}DESC=\"\$bname, int.stream#\$id0," \
 		    "\$desc\""
+		unset id0
 		case "$desc" in *\ \(default\)) AIDDEF="$AIDC" ;; esac
 		state="AID${AIDC}DESC"
 		incr AIDC
@@ -786,8 +808,33 @@ if [ "z$AID" != "znone" ] || [ "z$SID" != "znone" ] \
 		case "$desc" in *\ \(default\)) SIDDEF="$SIDC" ;; esac
 		eval "SID${SIDC}DESC=\"\$bname, int.stream#\$id0," \
 		    "\$desc\""
+		unset id0
 		state="SID${SIDC}DESC"
 		incr SIDC
+		;;
+	    Attachment)
+		case "$desc" in
+		    [ot]tf)
+			eval "FID$FIDC=\"\$id\""
+			eval "FID${FIDC}TYPE=\"\$desc\""
+			eval "FID${FIDC}DESC=\"\$bname, int.stream#\$id0," \
+			    "\$desc\""
+			state="FID${FIDC}DESC"
+			# Append $FIDC to list of fids of the
+			# corresponding INPUT file:
+			i="${id%:*}"
+			eval "fids=\"\$IN${i}FIDS\""
+			if [ "z$fids" != "z" ] ; then
+			    fids="$fids "
+			fi
+			fids="${fids}$FIDC"
+			eval "IN${i}FIDS=\"\$fids\""
+			unset i
+			unset fids
+			incr FIDC
+			;;
+		esac
+		unset id0
 		;;
 	esac
     done <"$TMP_OUT"
@@ -1042,7 +1089,7 @@ if [ "z$SID" != "z" ] && [ "z$SID" != "znone" ] ; then
 	E="$?" ; if [ "z$E" != "z0" ] ; then die "$E" ; fi
     else
 	# Extract subtitles to tmp file:
-	ffmpeg="ffmpeg -hide_banner"
+	ffmpeg="ffmpeg -hide_banner $ANALYZEDURATION $PROBESIZE"
 	append_ingrps2cmd ffmpeg
 	ffmpeg="$ffmpeg -map_metadata -1 -map_chapters -1"
 	ffmpeg="$ffmpeg -an -vn -map \"\$SID\" -c:s copy"
@@ -1074,7 +1121,7 @@ if [ "z$SID" != "z" ] && [ "z$SID" != "znone" ] ; then
 		die "unknown subs type for $SID"
 	    fi
 	    TMP_SUBS="${TMPF}.$SIDTYPE"
-	    ffmpeg2="ffmpeg -hide_banner"
+	    ffmpeg2="ffmpeg -hide_banner $ANALYZEDURATION $PROBESIZE"
 	    ffmpeg2="$ffmpeg2 -i \"\$TMP_MKV\""
 	    ffmpeg2="$ffmpeg2 -map_metadata -1 -map_chapters -1"
 	    ffmpeg2="$ffmpeg2 -an -vn -map 0:0 -c:s copy"
@@ -1183,28 +1230,77 @@ if [ "z$SID" != "z" ] && [ "z$SID" != "znone" ] ; then
     VF_SUBS=",$SUBS_FILTER=${TMP_SUBS}${subcp}${SUBSS}"
 fi
 
+# Extract embedded fonts:
+if [ "z$EMBEDDED_FONTS" = "z1" ] && [ 0 -lt "$FIDC" ] ; then
+    rm -rf "${TMPF}.fonts"
+    rm -f "${TMPF}.fontcfg"
+    mkdir "${TMPF}.fonts" || exit "$?"
+    # Generate custom font config:
+    cat >"${TMPF}.fontcfg" <<EOF
+<?xml version="1.0"?>
+<!DOCTYPE fontconfig SYSTEM "fonts.dtd">
+<fontconfig>
+	<dir>${TMPF}.fonts</dir>
+	<include ignore_missing="yes">/etc/fonts/fonts.conf</include>
+</fontconfig>
+EOF
+    # Set and export FONTCONFIG_FILE variable in order
+    # for libfontconfig to pick up the custom cfgfile:
+    FONTCONFIG_FILE="${TMPF}.fontcfg"
+    export FONTCONFIG_FILE
+    # Extract all fonts in single run with multiple -dump_attachment
+    # parameters per each input file and with multiple input files:
+    ffmpeg="ffmpeg -hide_banner $ANALYZEDURATION $PROBESIZE"
+    i=0
+    while [ "$i" -lt "$INC" ] ; do
+	eval "fids=\"\$IN${i}FIDS\""
+	if [ "z$fids" != "z" ] ; then
+	    for j in $fids ; do
+		# Append -dump_attachment parameter:
+		eval "id=\"\$FID${j}\""
+		ffmpeg="$ffmpeg -dump_attachment:${id#*:}"
+		# Append attachment file name:
+		eval "fname=\"\$FID${j}FNAME\""
+		fname="${fname#**/}"
+		if [ "z$fname" = "z" ] ; then
+		    fname="foo.ttf"
+		fi
+		fname="${TMPF}.fonts/$id-$fname"
+		eval "FID${j}F=\"\$fname\""
+		ffmpeg="$ffmpeg \"\$FID${j}F\""
+	    done
+	fi
+	ffmpeg="$ffmpeg -i \"\$IN${i}\""
+	incr i
+    done
+    run_ffmpeg "$ffmpeg" "$TMP_OUT" 0
+fi
+
 if [ "z$ID_MODE" = "z1" ] ; then
-    rm -f "${TMPF}".*
+    rm -rf "${TMPF}".*
     exit 0
 fi
 
 # The async=4000 (4000 samples) parameter to aresample filter is
 # necessary to enable sound stretching/squeezing to match video
-# timestamps. Otherwize the resulting vide will more often than not
+# timestamps. Otherwize the resulting video will more often than not
 # have audible "clicks" every several seconds.
 aresample="aresample=\${ARATE}och=2:osf=fltp:ocl=downmix:async=4000"
-asyncts="asyncts=min_delta=\${ASD}"
+aresample="$aresample:min_comp=0.05"
+#XXX:?#aresample="$aresample:min_comp=0.01:min_hard_comp=\${ASD}"
+#XXX:?#aresample="$aresample:max_soft_comp=0.2"
+#XXX:obsolete#asyncts="asyncts=min_delta=\${ASD}"
 
 # Detect max volume and raise it if THRESH_VOL is set:
 if [ "z$ADD_VOL" = "z" ] && [ "z$THRESH_VOL" != "z" ] \
 	&& [ "z$THRESH_VOL" != "znone" ] \
 	&& [ "z$AID" != "znone" ] ; then
-    ffmpeg="ffmpeg -hide_banner"
+    ffmpeg="ffmpeg -hide_banner $ANALYZEDURATION $PROBESIZE"
     append_ingrps2cmd ffmpeg
     teelog="2>&1 | tee \"\$TMP_OUT\""
     ffmpeg="$ffmpeg -map_metadata -1 -map_chapters -1 -sn -vn"
     ffmpeg="$ffmpeg -map \"\$AID\" -c:a \"\$OUT0AC\""
-    ffmpeg="$ffmpeg -af \"\${AFPRE_OTHER}$asyncts,$aresample"
+    ffmpeg="$ffmpeg -af \"\${AFPRE_OTHER}$aresample"
     ffmpeg="$ffmpeg,volumedetect\${AF_OTHER}\""
     append_grp2cmd "$OUT0GRP" ffmpeg
     ffmpeg="$ffmpeg -f \"\$OUT0MUX\" -y /dev/null"
@@ -1229,9 +1325,7 @@ EOF`"
     # XXX : check for "[output stream 0:0 @ 0x7cbc80] 100 buffers queued
     # in output stream 0:0, something may be wrong." messages:
     if grep "something may be wrong" "$TMP_OUT" >/dev/null ; then
-	if [ "z$IGNSMW" != "z1" ] ; then
-	    die "something may be wrong"
-	fi
+	die "something may be wrong"
     fi
 fi
 if [ "z$ADD_VOL" != "z" ] ; then
@@ -1244,7 +1338,7 @@ if [ "z$ADD_VOL" != "z" ] ; then
 fi
 rm -f "$TMP_OUT"
 
-ffmpeg="ffmpeg -hide_banner"
+ffmpeg="ffmpeg -hide_banner $ANALYZEDURATION $PROBESIZE"
 append_ingrps2cmd ffmpeg
 ffmpeg="$ffmpeg -map_metadata -1"
 ffmpeg="$ffmpeg -map_chapters -1"
@@ -1259,7 +1353,7 @@ if [ "z$AID" != "znone" ] ; then
     ffmpeg="$ffmpeg -map \"\$AID\""
     ffmpeg="$ffmpeg -c:a \"\$OUT0AC\""
     ffmpeg="$ffmpeg -ac 2"
-    ffmpeg="$ffmpeg -af \"\${AFPRE_OTHER}$asyncts,$aresample"
+    ffmpeg="$ffmpeg -af \"\${AFPRE_OTHER}$aresample"
     ffmpeg="$ffmpeg\${AF_VOL}\${AF_OTHER}\""
     if [ "z$ALANG" != "z" ] ; then
 	ffmpeg="$ffmpeg -metadata:s:a \"language=\$ALANG\""
@@ -1292,6 +1386,10 @@ if [ "z$TMP_PASS" != "z" ] ; then
 fi
 if [ "z$TMP_SUBS" != "z" ] ; then
     rm -f "$TMP_SUBS"
+fi
+if [ "z$EMBEDDED_FONTS" = "z1" ] && [ 0 -lt "$FIDC" ] ; then
+    rm -rf "${TMPF}.fonts"
+    rm -f "${TMPF}.fontcfg"
 fi
 
 # vi:set sw=4 noet ts=8 tw=71:
