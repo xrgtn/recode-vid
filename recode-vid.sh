@@ -723,28 +723,28 @@ if [ "z$AID" != "znone" ] || [ "z$SID" != "znone" ] \
 	# Metadata:
 	#   title           : Suzaku
 	case "z$L" in
-	    "z  Stream #"*": Video: "*);&
-	    "z    Stream #"*": Video: "*)
+	    "z    Stream #"*": Video: "*);&
+	    "z  Stream #"*": Video: "*)
 		state="Video"
 		;;
-	    "z  Stream #"*": Audio: "*);&
-	    "z    Stream #"*": Audio: "*)
+	    "z    Stream #"*": Audio: "*);&
+	    "z  Stream #"*": Audio: "*)
 		state="Audio"
 		;;
-	    "z  Stream #"*": Subtitle: "*);&
-	    "z    Stream #"*": Subtitle: "*)
+	    "z    Stream #"*": Subtitle: "*);&
+	    "z  Stream #"*": Subtitle: "*)
 		state="Subtitle"
 		;;
-	    "z  Stream #"*": Attachment: "*);&
-	    "z    Stream #"*": Attachment: "*)
+	    "z    Stream #"*": Attachment: "*);&
+	    "z  Stream #"*": Attachment: "*)
 		state="Attachment"
 		;;
-	    "z  Stream #"*": Data: "*);&
-	    "z    Stream #"*": Data: "*)
+	    "z    Stream #"*": Data: "*);&
+	    "z  Stream #"*": Data: "*)
 		state="Data"
 		;;
-	    "z  Metadata:");&
-	    "z    Metadata:")
+	    "z    Metadata:");&
+	    "z  Metadata:")
 		if ! expr "z$state" : 'z[AVSF]ID[0-9][0-9]*DESC$' \
 		    >/dev/null ; then
 		    state="meta"
