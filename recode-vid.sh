@@ -803,7 +803,7 @@ if [ "z$AID" != "znone" ] || [ "z$SID" != "znone" ] \
 		eval "VID${VIDC}DESC=\"\$bname, int.stream#\$id0," \
 		    "\$desc\""
 		unset id0
-		case "$desc" in *\ \(default\)) VIDDEF="$VIDC" ;; esac
+		case "$desc" in *" (default)") VIDDEF="$VIDC" ;; esac
 		state="VID${VIDC}DESC"
 		incr VIDC
 		;;
@@ -812,7 +812,7 @@ if [ "z$AID" != "znone" ] || [ "z$SID" != "znone" ] \
 		eval "AID${AIDC}DESC=\"\$bname, int.stream#\$id0," \
 		    "\$desc\""
 		unset id0
-		case "$desc" in *\ \(default\)) AIDDEF="$AIDC" ;; esac
+		case "$desc" in *" (default)") AIDDEF="$AIDC" ;; esac
 		state="AID${AIDC}DESC"
 		incr AIDC
 		;;
@@ -825,7 +825,7 @@ if [ "z$AID" != "znone" ] || [ "z$SID" != "znone" ] \
 			desc="srt${desc#subrip}"
 			eval "SID${SIDC}TYPE=\"srt\"";;
 		esac
-		case "$desc" in *\ \(default\)) SIDDEF="$SIDC" ;; esac
+		case "$desc" in *" (default)") SIDDEF="$SIDC" ;; esac
 		eval "SID${SIDC}DESC=\"\$bname, int.stream#\$id0," \
 		    "\$desc\""
 		unset id0
@@ -1124,14 +1124,16 @@ if [ "z$SID" != "z" ] && [ "z$SID" != "znone" ] ; then
 	    state=""
 	    while readw L ; do
 		case "$state$L" in
-		    Output\ \#0,*)
+		    "Output #0,"*)
 			state="o"
 			;;
-		    o\ \ \ \ Stream\ \#0:0*:\ Subtitle:\ ass*)
+		    "o    Stream #0:0"*": Subtitle: ass"*);&
+		    "o  Stream #0:0"*": Subtitle: ass"*)
 			SIDTYPE="ass"
 			break
 			;;
-		    o\ \ \ \ Stream\ \#0:0*:\ Subtitle:\ subrip*)
+		    "o    Stream #0:0"*": Subtitle: subrip"*);&
+		    "o  Stream #0:0"*": Subtitle: subrip"*)
 			SIDTYPE="srt"
 			break
 			;;
