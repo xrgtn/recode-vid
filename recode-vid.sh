@@ -722,12 +722,29 @@ if [ "z$AID" != "znone" ] || [ "z$SID" != "znone" ] \
 	# stereo, s16p, 160 kb/s
 	# Metadata:
 	#   title           : Suzaku
-	case "$L" in
-	    \ \ \ \ Stream\ \#*:\ Video:\ *) state="Video";;
-	    \ \ \ \ Stream\ \#*:\ Audio:\ *) state="Audio";;
-	    \ \ \ \ Stream\ \#*:\ Subtitle:\ *) state="Subtitle";;
-	    \ \ \ \ Stream\ \#*:\ Attachment:\ *) state="Attachment";;
-	    \ \ \ \ Metadata:)
+	case "z$L" in
+	    "z  Stream #"*": Video: "*);&
+	    "z    Stream #"*": Video: "*)
+		state="Video"
+		;;
+	    "z  Stream #"*": Audio: "*);&
+	    "z    Stream #"*": Audio: "*)
+		state="Audio"
+		;;
+	    "z  Stream #"*": Subtitle: "*);&
+	    "z    Stream #"*": Subtitle: "*)
+		state="Subtitle"
+		;;
+	    "z  Stream #"*": Attachment: "*);&
+	    "z    Stream #"*": Attachment: "*)
+		state="Attachment"
+		;;
+	    "z  Stream #"*": Data: "*);&
+	    "z    Stream #"*": Data: "*)
+		state="Data"
+		;;
+	    "z  Metadata:");&
+	    "z    Metadata:")
 		if ! expr "z$state" : 'z[AVSF]ID[0-9][0-9]*DESC$' \
 		    >/dev/null ; then
 		    state="meta"
@@ -735,7 +752,7 @@ if [ "z$AID" != "znone" ] || [ "z$SID" != "znone" ] \
 		    unset id
 		fi
 		;;
-	    \ \ \ \ \ \ ????????????????:\ *)
+	    "z      "????????????????": "*)
 		if expr "z$state" : 'z[AVSF]ID[0-9][0-9]*DESC$' \
 		    >/dev/null ; then
 		    key="${L%%:*}"
@@ -765,14 +782,17 @@ if [ "z$AID" != "znone" ] || [ "z$SID" != "znone" ] \
 	esac
 	case "$state" in
 	    Video|Audio|Subtitle|Attachment)
-		desc="${L#    Stream #}"
+		case "z$L" in
+		    "z    S"*)desc="${L#    Stream #}";;
+		    "z  S"*)  desc="${L#  Stream #}";;
+		esac
 		id0="${desc%%: $state: *}"
 		desc="${desc#*: $state: }"
 		id="${id0%%(*}"
 		id="${id%%\[*}"
 		if ! expr "z$id" : 'z[0-9][0-9]*:[0-9][0-9]*$' \
 			>/dev/null ; then
-		    die "invalid stream id: $L"
+		    die "invalid stream id: '$L'"
 		fi
 		eval "bname=\"\$IN${id%:*}BNAME\""
 		;;
@@ -1298,7 +1318,7 @@ if [ "z$ADD_VOL" = "z" ] && [ "z$THRESH_VOL" != "z" ] \
     ffmpeg="ffmpeg -hide_banner $ANALYZEDURATION $PROBESIZE"
     append_ingrps2cmd ffmpeg
     teelog="2>&1 | tee \"\$TMP_OUT\""
-    ffmpeg="$ffmpeg -map_metadata -1 -map_chapters -1 -sn -vn"
+    ffmpeg="$ffmpeg -map_metadata -1 -map_chapters -1 -sn -vn -dn"
     ffmpeg="$ffmpeg -map \"\$AID\" -c:a \"\$OUT0AC\""
     ffmpeg="$ffmpeg -af \"\${AFPRE_OTHER}$aresample"
     ffmpeg="$ffmpeg,volumedetect\${AF_OTHER}\""
@@ -1342,6 +1362,7 @@ ffmpeg="ffmpeg -hide_banner $ANALYZEDURATION $PROBESIZE"
 append_ingrps2cmd ffmpeg
 ffmpeg="$ffmpeg -map_metadata -1"
 ffmpeg="$ffmpeg -map_chapters -1"
+ffmpeg="$ffmpeg -dn"
 ffmpeg="$ffmpeg -map \"\$VID\""
 ffmpeg="$ffmpeg -c:v \"\$OUT0VC\""
 if [ "z$OUT0VC" = "zlibx264" ] && [ "z$X264OPTS" != "z" ] ; then
