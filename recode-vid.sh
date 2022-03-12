@@ -697,7 +697,7 @@ for f in bc cat cp expr ffmpeg find grep iconv mkdir mv perl pwd rm \
 	fi
     done
     if [ "z$x" = "z0" ] ; then
-	die "$f not found"
+	die "'$f' not found"
     fi
 done
 IFS="$ifs0"
