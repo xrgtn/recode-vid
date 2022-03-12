@@ -709,6 +709,8 @@ if [ "z$AID" != "znone" ] || [ "z$SID" != "znone" ] \
     # Detect internal video/audio/subtitles stream IDs:
     ffmpeg="ffmpeg -hide_banner $ANALYZEDURATION $PROBESIZE"
     append_ins2cmd ffmpeg
+    # This will fail with "At least one output file must be specified",
+    # but produce nice listing of all input streams:
     run_ffmpeg "$ffmpeg" "$TMP_OUT" 0
     state=""
     while readw L ; do
