@@ -1429,10 +1429,44 @@ if [ "z$VID" != "znone" ] ; then
     *[0-9]x*)
 	VF_SCALE=",scale=w=$SCALEW:h=round(ih*ow/iw/sar/$r)*$r"
 	VF_SCALE="${VF_SCALE},setsar=sar=1"
+	h2="`bc2 "scale=0" "$H*$SCALEW*$SARH/$W/$SARW/$r*$r"`"
+	# Check if scaled height fits -h:
+	h="${SCALEH%[+-]}"
+	case "z$SCALEH" in
+	z*+)
+	    if [ "$h2" -lt "$h" ] ; then
+		die "Can't scale ${W}x$H [SAR $SARW:$SARH]" \
+			"=> $SCALEW x $SCALEH"
+	    fi
+	    ;;
+	z*-)
+	    if [ "$h2" -gt "$h" ] ; then
+		die "Can't scale ${W}x$H [SAR $SARW:$SARH]" \
+			"=> $SCALEW x $SCALEH"
+	    fi
+	    ;;
+	esac
 	;;
     *x*[0-9])
 	VF_SCALE=",scale=h=$SCALEH:w=round(iw*oh/ih*sar/$r)*$r"
 	VF_SCALE="${VF_SCALE},setsar=sar=1"
+	w2="`bc2 "scale=0" "$W*$SCALEH*$SARW/$H/$SARH/$r*$r"`"
+	# Check if scaled width fits -w:
+	w="${SCALEW%[+-]}"
+	case "z$SCALEW" in
+	z*+)
+	    if [ "$w2" -lt "$w" ] ; then
+		die "Can't scale ${W}x$H [SAR $SARW:$SARH]" \
+			"=> $SCALEW x $SCALEH"
+	    fi
+	    ;;
+	z*-)
+	    if [ "$w2" -gt "$w" ] ; then
+		die "Can't scale ${W}x$H [SAR $SARW:$SARH]" \
+			"=> $SCALEW x $SCALEH"
+	    fi
+	    ;;
+	esac
 	;;
     x)	# no scaling needed
 	;;
