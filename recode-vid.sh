@@ -400,6 +400,33 @@ parse_stream_id() {
     fi
 }
 
+bc1() {
+    bc <<EOF
+$1
+EOF
+}
+
+bc2() {
+    bc <<EOF
+$1
+$2
+EOF
+}
+
+rnd_up() {
+    _x="`bc2 "scale=0" "$1 / $2 * $2"`"
+    if [ "$_x" -lt "$1" ] ; then _x="`bc1 "$_x + $2"`" ; fi
+    printf %s "$_x"
+    unset _x
+}
+
+rnd_down() {
+    _x="`bc2 "scale=0" "$1 / $2 * $2"`"
+    if [ "$_x" -gt "$1" ] ; then _x="`bc1 "$_x - $2"`" ; fi
+    printf %s "$_x"
+    unset _x
+}
+
 parse_args() {
     while [ 0 -lt $# ] ; do
 	A="$1"
@@ -1412,33 +1439,59 @@ if [ "z$VID" != "znone" ] ; then
     *x*)
 	case "z$SCALEW" in
 	z*+)
-	    w="${SCALEW%+}"
+	    w="`rnd_up "${SCALEW%[+-]}" "$r"`"
 	    if [ "$W" -lt "$w" ] ; then
 		VF_SCALE=",scale=w=$w:h=round(ih*ow/iw/sar/$r)*$r"
 		VF_SCALE="${VF_SCALE},setsar=sar=1"
+		w2="$w"
+		h2="`bc2 "scale=0" "$H*$w2*$SARH/$W/$SARW/$r*$r"`"
 	    fi
 	    ;;
 	z*-)
-	    w="${SCALEW%-}"
+	    w="`rnd_down "${SCALEW%[+-]}" "$r"`"
 	    if [ "$W" -gt "$w" ] ; then
 		VF_SCALE=",scale=w=$w:h=round(ih*ow/iw/sar/$r)*$r"
 		VF_SCALE="${VF_SCALE},setsar=sar=1"
+		w2="$w"
+		h2="`bc2 "scale=0" "$H*$w2*$SARH/$W/$SARW/$r*$r"`"
 	    fi
+	    ;;
+	*)  w2="$W"
+	    h2="$H"
 	    ;;
 	esac
 	case "z$SCALEH" in
 	z*+)
-	    h="${SCALEH%+}"
-	    if [ "$H" -lt "$h" ] ; then
+	    h="`rnd_up "${SCALEH%[+-]}" "$r"`"
+	    if [ "$h2" -lt "$h" ] ; then
 		VF_SCALE=",scale=h=$h:w=round(iw*oh/ih*sar/$r)*$r"
 		VF_SCALE="${VF_SCALE},setsar=sar=1"
+		h2="$h"
+		w2="`bc2 "scale=0" "$W*$h2*$SARW/$H/$SARH/$r*$r"`"
 	    fi
 	    ;;
 	z*-)
-	    h="${SCALEH%-}"
-	    if [ "$H" -gt "$h" ] ; then
+	    h="`rnd_down "${SCALEH%[+-]}" "$r"`"
+	    if [ "$h2" -gt "$h" ] ; then
 		VF_SCALE=",scale=h=$h:w=round(iw*oh/ih*sar/$r)*$r"
 		VF_SCALE="${VF_SCALE},setsar=sar=1"
+		h2="$h"
+		w2="`bc2 "scale=0" "$W*$h2*$SARW/$H/$SARH/$r*$r"`"
+	    fi
+	    ;;
+	esac
+	# Check if scaled size fits -w/-h after 2nd attempt:
+	case "z$SCALEW" in
+	z*+)
+	    if [ "$w2" -lt "$w" ] ; then
+		die "Can't scale ${W}x$H [SAR $SARW:$SARH]" \
+			"=> $SCALEW x $SCALEH"
+	    fi
+	    ;;
+	z*-)
+	    if [ "$w2" -gt "$w" ] ; then
+		die "Can't scale ${W}x$H [SAR $SARW:$SARH]" \
+			"=> $SCALEW x $SCALEH"
 	    fi
 	    ;;
 	esac
