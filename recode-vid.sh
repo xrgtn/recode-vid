@@ -1473,6 +1473,23 @@ if [ "z$VID" != "znone" ] ; then
     unset W
     unset H
     unset r
+
+    # Ad-hoc fixes for 24000/1001, 30000/1001 & 60000/1001 rates:
+    case "z,$VFPRE_OTHER$VF_OTHER" in
+    z*,fps=*)
+	# there's already an fps filter present, no action needed
+	;;
+    z*)
+	case "z$desc" in
+	z*[,\ ]"23.98 fps"[,\ ]*)
+	    VF_OTHER="$VF_OTHER,fps=fps=24000/1001";;
+	z*[,\ ]"29.97 fps"[,\ ]*)
+	    VF_OTHER="$VF_OTHER,fps=fps=30000/1001";;
+	z*[,\ ]"59.94 fps"[,\ ]*)
+	    VF_OTHER="$VF_OTHER,fps=fps=60000/1001";;
+	esac
+	;;
+    esac
     unset desc
 fi
 rm -f "$TMP_OUT"
