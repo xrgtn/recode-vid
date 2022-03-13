@@ -12,7 +12,10 @@ usage() {
 	-alang	L	set audio stream language L
 	-arate	R	set audio rate R
 	-asd	S	set asyncts min_delta to S [0.3]
-	-h	H	scale to height H
+	-h	H	scale to height H, for example:
+			-h 480	means scale to 480 lines exactly
+			-h 720-	to 720 at most (downscale if necessary)
+			-h 400+ to 400 at least (upscale if necessary)
 	-hqdn3d L:C:T	set hqdn3d parameters [2:1:2]
 	-id		print info on audio/subs IDs
 	-n		don't overwrite output file [-y]
@@ -27,7 +30,7 @@ usage() {
 	-vfpre	F	prepend video filter F
 	-vid	N	select Nth video stream [0]
 	-vol	A	increase volume by A dB
-	-w	W	scale to width W [720]
+	-w	W	scale to width W (same semantics as -h H)
 	-x264opts O	set x264 options [subme=9:ref=4:bframes=1:
 			me=umh:partitions=all:no8x8dct:
 			b-pyramid=strict:bluray-compat]
@@ -431,6 +434,10 @@ parse_args() {
 		CUR_OPT="none"
 		;;
 	    -h)
+		if ! expr "z$A" : 'z[0-9][0-9]*[+-]\?$' \
+			>/dev/null ; then
+		    die "invalid height $A"
+		fi
 		SCALEH="$A"
 		CUR_OPT="none"
 		;;
@@ -500,6 +507,10 @@ parse_args() {
 		CUR_OPT="none"
 		;;
 	    -w)
+		if ! expr "z$A" : 'z[0-9][0-9]*[+-]\?$' \
+			>/dev/null ; then
+		    die "invalid width $A"
+		fi
 		SCALEW="$A"
 		CUR_OPT="none"
 		;;
@@ -577,25 +588,6 @@ parse_args() {
     else
 	if [ "z$ARG_CNT" != "z2" ] ; then
 	    usage "${0##*/}"
-	fi
-    fi
-
-    # Generate VF_SCALE filter string from SCALEW/SCALEH:
-    if [ "z$SCALEW" != "z" ] ; then
-	if [ "z$SCALEH" != "z" ] ; then
-	    VF_SCALE=",scale=w=$SCALEW:h=$SCALEH"
-	else
-	    VF_SCALE=",scale=w=$SCALEW:h=ceil(ih*ow/iw/sar/2)*2"
-	fi
-	VF_SCALE="$VF_SCALE,setsar=sar=1"
-    else
-	if [ "z$SCALEH" != "z" ] ; then
-	    VF_SCALE=",scale=h=$SCALEH:w=ceil(iw*oh/ih/sar/2)*2"
-	    VF_SCALE="$VF_SCALE,setsar=sar=1"
-	else
-	    SCALEW=720
-	    VF_SCALE=",scale=w=$SCALEW:h=ceil(ih*ow/iw/sar/2)*2"
-	    VF_SCALE="$VF_SCALE,setsar=sar=1"
 	fi
     fi
 }
@@ -705,7 +697,8 @@ parse_args "$@"
 
 # Detect internal & external stream IDs:
 if [ "z$AID" != "znone" ] || [ "z$SID" != "znone" ] \
-    || [ "z$ID_MODE" = "z1" ] || [ "z$EMBEDDED_FONTS" = "z1" ] ; then
+	|| [ "z$VID" != "znone" ] || [ "z$ID_MODE" = "z1" ] \
+	|| [ "z$EMBEDDED_FONTS" = "z1" ]; then
     # Detect internal video/audio/subtitles stream IDs:
     ffmpeg="ffmpeg -hide_banner $ANALYZEDURATION $PROBESIZE"
     append_ins2cmd ffmpeg
@@ -788,37 +781,47 @@ if [ "z$AID" != "znone" ] || [ "z$SID" != "znone" ] \
 		    "z    S"*)desc="${L#    Stream #}";;
 		    "z  S"*)  desc="${L#  Stream #}";;
 		esac
-		id0="${desc%%: $state: *}"
+		# idx is extended id, with (lang) and [hex] suffixes
+		# if present:
+		idx="${desc%%: $state: *}"
 		desc="${desc#*: $state: }"
-		id="${id0%%(*}"
+		# id is plain input_no:stream_no id:
+		id="${idx%%(*}"
 		id="${id%%\[*}"
 		if ! expr "z$id" : 'z[0-9][0-9]*:[0-9][0-9]*$' \
 			>/dev/null ; then
-		    die "invalid stream id: '$L'"
+		    die "invalid input stream <$id> in '$L'"
 		fi
-		eval "bname=\"\$IN${id%:*}BNAME\""
+		# input no:
+		input_no="${id%:*}"
+		# stream no:
+		stream_no="${id#*:}"
+		eval "bname=\"\$IN${input_no}BNAME\""
 		;;
 	esac
 	case "$state" in
 	    Video)
+		eval "I${input_no}N${stream_no}=\"VID$VIDC\""
 		eval "VID$VIDC=\"\$id\""
-		eval "VID${VIDC}DESC=\"\$bname, int.stream#\$id0," \
+		eval "VID${VIDC}DESC=\"\$bname, int.stream#\$idx," \
 		    "\$desc\""
-		unset id0
+		unset idx
 		case "$desc" in *" (default)") VIDDEF="$VIDC" ;; esac
 		state="VID${VIDC}DESC"
 		incr VIDC
 		;;
 	    Audio)
+		eval "I${input_no}N${stream_no}=\"AID$AIDC\""
 		eval "AID$AIDC=\"\$id\""
-		eval "AID${AIDC}DESC=\"\$bname, int.stream#\$id0," \
+		eval "AID${AIDC}DESC=\"\$bname, int.stream#\$idx," \
 		    "\$desc\""
-		unset id0
+		unset idx
 		case "$desc" in *" (default)") AIDDEF="$AIDC" ;; esac
 		state="AID${AIDC}DESC"
 		incr AIDC
 		;;
 	    Subtitle)
+		eval "I${input_no}N${stream_no}=\"SID$SIDC\""
 		eval "SID$SIDC=\"\$id\""
 		case "$desc" in
 		    ass[,\ ]*|ass)
@@ -828,35 +831,34 @@ if [ "z$AID" != "znone" ] || [ "z$SID" != "znone" ] \
 			eval "SID${SIDC}TYPE=\"srt\"";;
 		esac
 		case "$desc" in *" (default)") SIDDEF="$SIDC" ;; esac
-		eval "SID${SIDC}DESC=\"\$bname, int.stream#\$id0," \
+		eval "SID${SIDC}DESC=\"\$bname, int.stream#\$idx," \
 		    "\$desc\""
-		unset id0
+		unset idx
 		state="SID${SIDC}DESC"
 		incr SIDC
 		;;
 	    Attachment)
 		case "$desc" in
 		    [ot]tf)
+			eval "I${input_no}N${stream_no}=\"FID$FIDC\""
 			eval "FID$FIDC=\"\$id\""
 			eval "FID${FIDC}TYPE=\"\$desc\""
-			eval "FID${FIDC}DESC=\"\$bname, int.stream#\$id0," \
-			    "\$desc\""
+			eval "FID${FIDC}DESC=\"\$bname," \
+			    "int.stream#\$idx, \$desc\""
 			state="FID${FIDC}DESC"
 			# Append $FIDC to list of fids of the
 			# corresponding INPUT file:
-			i="${id%:*}"
-			eval "fids=\"\$IN${i}FIDS\""
+			eval "fids=\"\$IN${input_no}FIDS\""
 			if [ "z$fids" != "z" ] ; then
 			    fids="$fids "
 			fi
 			fids="${fids}$FIDC"
-			eval "IN${i}FIDS=\"\$fids\""
-			unset i
+			eval "IN${input_no}FIDS=\"\$fids\""
 			unset fids
 			incr FIDC
 			;;
 		esac
-		unset id0
+		unset idx
 		;;
 	esac
     done <"$TMP_OUT"
@@ -1299,6 +1301,181 @@ EOF
     done
     run_ffmpeg "$ffmpeg" "$TMP_OUT" 0
 fi
+
+# Detect VID stream size (WxH) and decide whether we need to do
+# scaling:
+if [ "z$VID" != "znone" ] ; then
+    # Copy 0 seconds of the selected video stream ($VID)
+    # from set of input files (IN GRP) to /dev/null,
+    # and parse ffmpeg's output to find dimensions of
+    # output video stream:
+    ffmpeg="ffmpeg -hide_banner $ANALYZEDURATION $PROBESIZE"
+    append_ingrps2cmd ffmpeg
+    ffmpeg="$ffmpeg -an -dn -sn"
+    if [ "z$VID" != "z" ] ; then
+	ffmpeg="$ffmpeg -map \"\$VID\""
+    fi
+    ffmpeg="$ffmpeg -c copy -t 0 -f matroska -y /dev/null"
+    run_ffmpeg "$ffmpeg" "$TMP_OUT" 0
+
+    # Stream mapping:
+    #   Stream #1:0 -> #0:0 (copy)
+    state=""
+    while readw L ; do
+	case "$state$L" in
+	    "Stream mapping:"*) state="m";;
+	    "m    Stream #"*:*" -> #"*:*);&
+	    "m  Stream #"*:*" -> #"*:*)
+		# id0 is input_no:istream_no
+		id0="${L#*\#}"
+		id0="${id0% -> \#*}"
+		# id1 is output_no:ostream_no
+		id1="${L#* -> \#}"
+		id1="${id1%% *}"
+		if ! expr "z$id0" : 'z[0-9][0-9]*:[0-9][0-9]*$' \
+			>/dev/null ; then
+		    die "invalid input stream <$id0> in '$L'"
+		fi
+		if ! expr "z$id1" : 'z[0-9][0-9]*:[0-9][0-9]*$' \
+			>/dev/null ; then
+		    die "invalid output stream <$id1> in '$L'"
+		fi
+		# input no:
+		input_no="${id0%:*}"
+		# stream no:
+		istream_no="${id0#*:}"
+		unset id0
+		unset id1
+		break
+		;;
+	    *) state="";;
+	esac
+    done <"$TMP_OUT"
+    unset state
+    case "${input_no}x$istream_no" in
+	?*x?*);; # OK
+	*) die "unknown output video stream";;
+    esac
+
+    # Get stream name, aka VID0, SID1, AID0 etc:
+    eval "sname=\"\$I${input_no}N${istream_no}\""
+    case "$sname" in
+	VID[0-9]*);; # OK
+	*) die "#${input_no}:${istream_no} is not VIDx ($sname)";;
+    esac
+    unset input_no
+    unset istream_no
+    # Get stream description:
+    eval "desc=\"\$${sname}DESC\""
+    # Mimic listing of AIDs/SIDs:
+    echo "${sname/VID/vid\#}: $desc *"
+    unset sname
+
+    # Get WxH:
+    sz_re='[1-9][0-9]{1,5}x[1-9][0-9]{1,5}'
+    sz="`printf %s "$desc" | \
+	sed -nr "s/^.*[, ]($sz_re)[, ].*\$/\\1/p"`"
+    unset sz_re
+    if [ "z$sz" == "z" ] ; then
+	die "unknown WxH dimensions for video stream"
+    fi
+    W="${sz%x*}"
+    H="${sz#*x}"
+    unset sz
+    # Get SAR:
+    sar_re='[1-9][0-9]{0,5}:[1-9][0-9]{0,5}'
+    sar="`printf %s "$desc" | \
+	sed -nr "s/^.*[, []SAR ($sar_re)[], ].*\$/\\1/p"`"
+    unset sar_re
+    case "z$sar" in z) sar="1:1";; esac
+    SARW="${sar%:*}"
+    SARH="${sar#*:}"
+    unset sar
+
+    # Generate VF_SCALE filter string from SCALEW/SCALEH:
+    r=16
+    case "${SCALEW}x${SCALEH}" in
+    *[0-9]x*[0-9])
+	VF_SCALE=",scale=w=$SCALEW:h=$SCALEH"
+	VF_SCALE="${VF_SCALE},setsar=sar=1"
+	;;
+    *[0-9]x*)
+	VF_SCALE=",scale=w=$SCALEW:h=round(ih*ow/iw/sar/$r)*$r"
+	VF_SCALE="${VF_SCALE},setsar=sar=1"
+	;;
+    *x*[0-9])
+	VF_SCALE=",scale=h=$SCALEH:w=round(iw*oh/ih*sar/$r)*$r"
+	VF_SCALE="${VF_SCALE},setsar=sar=1"
+	;;
+    x)	# no scaling needed
+	;;
+    *x*)
+	case "z$SCALEW" in
+	z*+)
+	    w="${SCALEW%+}"
+	    if [ "$W" -lt "$w" ] ; then
+		VF_SCALE=",scale=w=$w:h=round(ih*ow/iw/sar/$r)*$r"
+		VF_SCALE="${VF_SCALE},setsar=sar=1"
+	    fi
+	    ;;
+	z*-)
+	    w="${SCALEW%-}"
+	    if [ "$W" -gt "$w" ] ; then
+		VF_SCALE=",scale=w=$w:h=round(ih*ow/iw/sar/$r)*$r"
+		VF_SCALE="${VF_SCALE},setsar=sar=1"
+	    fi
+	    ;;
+	esac
+	case "z$SCALEH" in
+	z*+)
+	    h="${SCALEH%+}"
+	    if [ "$H" -lt "$h" ] ; then
+		VF_SCALE=",scale=h=$h:w=round(iw*oh/ih*sar/$r)*$r"
+		VF_SCALE="${VF_SCALE},setsar=sar=1"
+	    fi
+	    ;;
+	z*-)
+	    h="${SCALEH%-}"
+	    if [ "$H" -gt "$h" ] ; then
+		VF_SCALE=",scale=h=$h:w=round(iw*oh/ih*sar/$r)*$r"
+		VF_SCALE="${VF_SCALE},setsar=sar=1"
+	    fi
+	    ;;
+	esac
+	;;
+    esac
+    unset w
+    unset h
+
+    # If input SAR is not 1:1 and no scaling+setsar was added to
+    # VF_SCALE, force downscaling of either W or H to drive output
+    # SAR to 1:1
+    case "z$VF_SCALE" in
+    z*,setsar=*)
+	# no action needed
+	;;
+    z*)
+	# For example, 720x480 [SAR 8:9 DAR 4:3] video gets its H
+	# upscaled to 720x540 on screen, because SARH (9) is greater
+	# than SARW (8). Therefore here we downscale W from 720 to
+	# 720*SARW/SARH=720*8/9=640.
+	if [ "$SARW" -lt "$SARH" ] ; then
+	    VF_SCALE=",scale=h=$H:w=round(iw*oh/ih*sar/$r)*$r"
+	    VF_SCALE="${VF_SCALE},setsar=sar=1"
+	elif [ "$SARW" -gt "$SARH" ] ; then
+	    VF_SCALE=",scale=w=$W:h=round(ih*ow/iw/sar/$r)*$r"
+	    VF_SCALE="${VF_SCALE},setsar=sar=1"
+	fi
+	;;
+    esac
+    unset SARW
+    unset SARH
+    unset W
+    unset H
+    unset r
+    unset desc
+fi
+rm -f "$TMP_OUT"
 
 if [ "z$ID_MODE" = "z1" ] ; then
     rm -rf "${TMPF}".*
