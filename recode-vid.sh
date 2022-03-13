@@ -1381,7 +1381,9 @@ if [ "z$VID" != "znone" ] ; then
     unset state
     case "${input_no}x$istream_no" in
 	?*x?*);; # OK
-	*) die "unknown output video stream";;
+	*)
+	    cat "$TMP_OUT" 1>&2
+	    die "unknown output video stream";;
     esac
 
     # Get stream name, aka VID0, SID1, AID0 etc:
