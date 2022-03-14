@@ -1422,16 +1422,17 @@ if [ "z$VID" != "znone" ] ; then
     unset sar
 
     # Generate VF_SCALE filter string from SCALEW/SCALEH:
-    r=16
+    rw=32
+    rh=16
     case "${SCALEW}x${SCALEH}" in
     *[0-9]x*[0-9])
 	VF_SCALE=",scale=w=$SCALEW:h=$SCALEH"
 	VF_SCALE="${VF_SCALE},setsar=sar=1"
 	;;
     *[0-9]x*)
-	VF_SCALE=",scale=w=$SCALEW:h=round(ih*ow/iw/sar/$r)*$r"
+	VF_SCALE=",scale=w=$SCALEW:h=round(ih*ow/iw/sar/$rh)*$rh"
 	VF_SCALE="${VF_SCALE},setsar=sar=1"
-	h2="`bc2 "scale=0" "$H*$SCALEW*$SARH/$W/$SARW/$r*$r"`"
+	h2="`bc2 "scale=0" "$H*$SCALEW*$SARH/$W/$SARW/$rh*$rh"`"
 	# Check if scaled height fits -h:
 	h="${SCALEH%[+-]}"
 	case "z$SCALEH" in
@@ -1450,9 +1451,9 @@ if [ "z$VID" != "znone" ] ; then
 	esac
 	;;
     *x*[0-9])
-	VF_SCALE=",scale=h=$SCALEH:w=round(iw*oh/ih*sar/$r)*$r"
+	VF_SCALE=",scale=h=$SCALEH:w=round(iw*oh/ih*sar/$rw)*$rw"
 	VF_SCALE="${VF_SCALE},setsar=sar=1"
-	w2="`bc2 "scale=0" "$W*$SCALEH*$SARW/$H/$SARH/$r*$r"`"
+	w2="`bc2 "scale=0" "$W*$SCALEH*$SARW/$H/$SARH/$rw*$rw"`"
 	# Check if scaled width fits -w:
 	w="${SCALEW%[+-]}"
 	case "z$SCALEW" in
@@ -1477,41 +1478,41 @@ if [ "z$VID" != "znone" ] ; then
 	h2="$H"
 	case "z$SCALEW" in
 	z*+)
-	    w="`rnd_up "${SCALEW%[+-]}" "$r"`"
+	    w="`rnd_up "${SCALEW%[+-]}" "$rw"`"
 	    if [ "$W" -lt "$w" ] ; then
-		VF_SCALE=",scale=w=$w:h=round(ih*ow/iw/sar/$r)*$r"
+		VF_SCALE=",scale=w=$w:h=round(ih*ow/iw/sar/$rh)*$rh"
 		VF_SCALE="${VF_SCALE},setsar=sar=1"
 		w2="$w"
-		h2="`bc2 "scale=0" "$H*$w2*$SARH/$W/$SARW/$r*$r"`"
+		h2="`bc2 "scale=0" "$H*$w2*$SARH/$W/$SARW/$rh*$rh"`"
 	    fi
 	    ;;
 	z*-)
-	    w="`rnd_down "${SCALEW%[+-]}" "$r"`"
+	    w="`rnd_down "${SCALEW%[+-]}" "$rw"`"
 	    if [ "$W" -gt "$w" ] ; then
-		VF_SCALE=",scale=w=$w:h=round(ih*ow/iw/sar/$r)*$r"
+		VF_SCALE=",scale=w=$w:h=round(ih*ow/iw/sar/$rh)*$rh"
 		VF_SCALE="${VF_SCALE},setsar=sar=1"
 		w2="$w"
-		h2="`bc2 "scale=0" "$H*$w2*$SARH/$W/$SARW/$r*$r"`"
+		h2="`bc2 "scale=0" "$H*$w2*$SARH/$W/$SARW/$rh*$rh"`"
 	    fi
 	    ;;
 	esac
 	case "z$SCALEH" in
 	z*+)
-	    h="`rnd_up "${SCALEH%[+-]}" "$r"`"
+	    h="`rnd_up "${SCALEH%[+-]}" "$rh"`"
 	    if [ "$h2" -lt "$h" ] ; then
-		VF_SCALE=",scale=h=$h:w=round(iw*oh/ih*sar/$r)*$r"
+		VF_SCALE=",scale=h=$h:w=round(iw*oh/ih*sar/$rw)*$rw"
 		VF_SCALE="${VF_SCALE},setsar=sar=1"
 		h2="$h"
-		w2="`bc2 "scale=0" "$W*$h2*$SARW/$H/$SARH/$r*$r"`"
+		w2="`bc2 "scale=0" "$W*$h2*$SARW/$H/$SARH/$rw*$rw"`"
 	    fi
 	    ;;
 	z*-)
-	    h="`rnd_down "${SCALEH%[+-]}" "$r"`"
+	    h="`rnd_down "${SCALEH%[+-]}" "$rh"`"
 	    if [ "$h2" -gt "$h" ] ; then
-		VF_SCALE=",scale=h=$h:w=round(iw*oh/ih*sar/$r)*$r"
+		VF_SCALE=",scale=h=$h:w=round(iw*oh/ih*sar/$rw)*$rw"
 		VF_SCALE="${VF_SCALE},setsar=sar=1"
 		h2="$h"
-		w2="`bc2 "scale=0" "$W*$h2*$SARW/$H/$SARH/$r*$r"`"
+		w2="`bc2 "scale=0" "$W*$h2*$SARW/$H/$SARH/$rw*$rw"`"
 	    fi
 	    ;;
 	esac
@@ -1550,10 +1551,10 @@ if [ "z$VID" != "znone" ] ; then
 	# than SARW (8). Therefore here we downscale W from 720 to
 	# 720*SARW/SARH=720*8/9=640.
 	if [ "$SARW" -lt "$SARH" ] ; then
-	    VF_SCALE=",scale=h=$H:w=round(iw*oh/ih*sar/$r)*$r"
+	    VF_SCALE=",scale=h=$H:w=round(iw*oh/ih*sar/$rw)*$rw"
 	    VF_SCALE="${VF_SCALE},setsar=sar=1"
 	elif [ "$SARW" -gt "$SARH" ] ; then
-	    VF_SCALE=",scale=w=$W:h=round(ih*ow/iw/sar/$r)*$r"
+	    VF_SCALE=",scale=w=$W:h=round(ih*ow/iw/sar/$rh)*$rh"
 	    VF_SCALE="${VF_SCALE},setsar=sar=1"
 	fi
 	;;
@@ -1562,7 +1563,8 @@ if [ "z$VID" != "znone" ] ; then
     unset SARH
     unset W
     unset H
-    unset r
+    unset rw
+    unset rh
 
     # Ad-hoc fixes for 24000/1001, 30000/1001 & 60000/1001 rates:
     case "z,$VFPRE_OTHER$VF_OTHER" in
