@@ -1473,6 +1473,8 @@ if [ "z$VID" != "znone" ] ; then
     x)	# no scaling needed
 	;;
     *x*)
+	w2="$W"
+	h2="$H"
 	case "z$SCALEW" in
 	z*+)
 	    w="`rnd_up "${SCALEW%[+-]}" "$r"`"
@@ -1491,9 +1493,6 @@ if [ "z$VID" != "znone" ] ; then
 		w2="$w"
 		h2="`bc2 "scale=0" "$H*$w2*$SARH/$W/$SARW/$r*$r"`"
 	    fi
-	    ;;
-	*)  w2="$W"
-	    h2="$H"
 	    ;;
 	esac
 	case "z$SCALEH" in
@@ -1533,6 +1532,8 @@ if [ "z$VID" != "znone" ] ; then
 	esac
 	;;
     esac
+    unset w2
+    unset h2
     unset w
     unset h
 
