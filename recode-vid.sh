@@ -20,6 +20,7 @@ usage() {
 	-id		print info on audio/subs IDs
 	-n		don't overwrite output file [-y]
 	-noass		don't use \"ass\" filter for subs
+	-psar		preserve original SAR
 	-sdir	D	external subtitles subdirectory
 	-sid	X	subtitles stream selector [default|0]
 	-subcp	X	assume codepage X for input subtitles [auto]
@@ -666,6 +667,9 @@ parse_args() {
 		    -n) OVWR_OUT="-n" ;;
 		    -noass)
 			SUBS_FILTER="subtitles"
+			;;
+		    -psar)
+			NORMALIZE_SAR=0
 			;;
 		    -y) OVWR_OUT="-y" ;;
 		    -fix_sub_duration)
