@@ -174,6 +174,7 @@ SUBS_FILTER=""	; # "ass" "or subtitles"
 VF_SUBS=""	; # "subtitles"/"ass" video filter with params
 SCALEW=""
 SCALEH=""
+NORMALIZE_SAR=1
 VF_SCALE=""
 VF_OTHER=""	; # other video filters to append
 VFPRE_OTHER=""	; # other video filters to prepend
@@ -400,12 +401,6 @@ parse_stream_id() {
     fi
 }
 
-bc1() {
-    bc <<EOF
-$1
-EOF
-}
-
 bc2() {
     bc <<EOF
 $1
@@ -413,18 +408,114 @@ $2
 EOF
 }
 
-rnd_up() {
-    _x="`bc2 "scale=0" "$1 / $2 * $2"`"
-    if [ "$_x" -lt "$1" ] ; then _x="`bc1 "$_x + $2"`" ; fi
-    printf %s "$_x"
-    unset _x
-}
-
-rnd_down() {
-    _x="`bc2 "scale=0" "$1 / $2 * $2"`"
-    if [ "$_x" -gt "$1" ] ; then _x="`bc1 "$_x - $2"`" ; fi
-    printf %s "$_x"
-    unset _x
+# closest_std WH SZ CONSTR MAXDIFF R
+#
+# WH		indicates W or H ("w", "width", "h", "height")
+# SZ		original size (e.g. "701")
+# CONSTR	std size constraint (e.g. "720-", "700+", "")
+# MAXDIFF	max diff between orig SZ and std size (e.g. "16")
+# R		round to R pixels if std size is not found
+#
+# return	closest standard width/height found conforming to the
+#		given CONSTR & MAXDIFF, or SZ rounded to R
+closest_std() {
+    # Minimum diff so far:
+    _m=""
+    # Closest std size so far:
+    _c=""
+    while read _f _s; do
+	# Skip empty/invalid sizes:
+	case "$_s" in [1-9]*x[1-9]*);; *) continue;; esac
+	# Strip xH suffix or Wx prefix
+	case "$1" in
+	w|W|width)  _s="${_s%x*}";;
+	h|H|height) _s="${_s#*x}";;
+	esac
+	# Skip std sizes not fitting into constraint:
+	case "$3" in
+	*-) if [ "$_s" -gt "${3%[+-]}" ]; then continue; fi;;
+	*+) if [ "$_s" -lt "${3%[+-]}" ]; then continue; fi;;
+	esac
+	# Get diff:
+	_d="`expr "$_s" - "$2"`"
+	# Compare abs(_d) with abs(_m):
+	if [ "z$_m" = "z" ] || [ "${_d#-}" -lt "${_m#-}" ]; then
+	    _m="$_d"
+	    _c="$_s"
+	fi
+    done <<EOF
+ntsc	720x480
+pal	720x576
+qntsc	352x240
+qpal	352x288
+sntsc	640x480
+spal	768x576
+film	352x240
+ntsc-film	352x240
+sqcif	128x96
+qcif	176x144
+cif	352x288
+4cif	704x576
+16cif	1408x1152
+qqvga	160x120
+qvga	320x240
+vga	640x480
+svga	800x600
+xga	1024x768
+uxga	1600x1200
+qxga	2048x1536
+sxga	1280x1024
+qsxga	2560x2048
+hsxga	5120x4096
+wvga	852x480
+wxga	1366x768
+wsxga	1600x1024
+wuxga	1920x1200
+woxga	2560x1600
+wqsxga	3200x2048
+wquxga	3840x2400
+whsxga	6400x4096
+whuxga	7680x4800
+cga	320x200
+ega	640x350
+hd480	852x480
+hd720	1280x720
+hd1080	1920x1080
+2k	2048x1080
+2kflat	1998x1080
+2kscope	2048x858
+4k	4096x2160
+4kflat	3996x2160
+4kscope	4096x1716
+nhd	640x360
+hqvga	240x160
+wqvga	400x240
+fwqvga	432x240
+hvga	480x320
+qhd	960x540
+2kdci	2048x1080
+4kdci	4096x2160
+uhd2160	3840x2160
+uhd4320	7680x4320
+EOF
+    if [ "z$_m" != "z" ] && [ "${_m#-}" -gt "$4" ] ; then
+	_c=""
+    fi
+    case "z$_c" in z)
+	# Set _c as SZ rounded to multiple of R:
+	_c=`bc2 "scale=0" "$2 / $5 * $5"`
+	# Check rounding against CONSTR and add ±R if needed:
+	case "$3" in
+	*-) if [ "$_c" -gt "${3%-}" ]; then
+		_c=`expr "$_c" - "$5"`
+	    fi;;
+	*+) if [ "$_c" -lt "${3%+}" ]; then
+		_c=`expr "$_c" + "$5"`
+	    fi;;
+	esac
+    esac
+    printf %s "$_c"
+    unset _c _m _s _f
 }
 
 parse_args() {
@@ -1396,9 +1487,7 @@ if [ "z$VID" != "znone" ] ; then
     unset istream_no
     # Get stream description:
     eval "desc=\"\$${sname}DESC\""
-    # Mimic listing of AIDs/SIDs:
-    echo "${sname/VID/vid\#}: $desc *"
-    unset sname
+    mark=""
 
     # Get WxH:
     sz_re='[1-9][0-9]{1,5}x[1-9][0-9]{1,5}'
@@ -1422,149 +1511,143 @@ if [ "z$VID" != "znone" ] ; then
     unset sar
 
     # Generate VF_SCALE filter string from SCALEW/SCALEH:
-    rw=32
-    rh=16
+    scale=0
+    W2="$W"
+    H2="$H"
+    aw=""
+    ah=""
+    # Normalize SAR first:
+    if [ "z$NORMALIZE_SAR" = "z1" ] ; then
+	# For example, 720x480 [SAR 8:9 DAR 4:3] video gets its H
+	# upscaled to 720x540 on screen, because SARH (9) is greater
+	# than SARW (8): H2=480*SARH/SARH=480*9/8=540
+	if [ "$SARH" -gt "$SARW" ] ; then
+	    H2="`bc2 "scale=0" "$H*$SARH/$SARW"`"
+	    scale=1
+	elif [ "$SARW" -gt "$SARH" ] ; then
+	    W2="`bc2 "scale=0" "$W*$SARW/$SARH"`"
+	    scale=1
+	fi
+	# P.S. `bc2 scale=0` means round to integer.
+	aw="*$SARW"
+	ah="*$SARH"
+    fi
     case "${SCALEW}x${SCALEH}" in
     *[0-9]x*[0-9])
-	VF_SCALE=",scale=w=$SCALEW:h=$SCALEH"
-	VF_SCALE="${VF_SCALE},setsar=sar=1"
+	W2="$SCALEW"
+	H2="$SCALEH"
+	# XXX: assume that scaling to fixed WxH also means setsar=sar=1
+	NORMALIZE_SAR=1
+	scale=1
 	;;
     *[0-9]x*)
-	VF_SCALE=",scale=w=$SCALEW:h=round(ih*ow/iw/sar/$rh)*$rh"
-	VF_SCALE="${VF_SCALE},setsar=sar=1"
-	h2="`bc2 "scale=0" "$H*$SCALEW*$SARH/$W/$SARW/$rh*$rh"`"
-	# Check if scaled height fits -h:
-	h="${SCALEH%[+-]}"
-	case "z$SCALEH" in
-	z*+)
-	    if [ "$h2" -lt "$h" ] ; then
-		die "Can't scale ${W}x$H [SAR $SARW:$SARH]" \
-			"=> $SCALEW x $SCALEH"
-	    fi
-	    ;;
-	z*-)
-	    if [ "$h2" -gt "$h" ] ; then
-		die "Can't scale ${W}x$H [SAR $SARW:$SARH]" \
-			"=> $SCALEW x $SCALEH"
-	    fi
-	    ;;
-	esac
+	H2="`bc2 "scale=0" "${SCALEW%[+-]}*$H$ah/($W$aw)"`"
+	W2="$SCALEW"
+	scale=1
 	;;
     *x*[0-9])
-	VF_SCALE=",scale=h=$SCALEH:w=round(iw*oh/ih*sar/$rw)*$rw"
-	VF_SCALE="${VF_SCALE},setsar=sar=1"
-	w2="`bc2 "scale=0" "$W*$SCALEH*$SARW/$H/$SARH/$rw*$rw"`"
-	# Check if scaled width fits -w:
-	w="${SCALEW%[+-]}"
-	case "z$SCALEW" in
-	z*+)
-	    if [ "$w2" -lt "$w" ] ; then
-		die "Can't scale ${W}x$H [SAR $SARW:$SARH]" \
-			"=> $SCALEW x $SCALEH"
-	    fi
-	    ;;
-	z*-)
-	    if [ "$w2" -gt "$w" ] ; then
-		die "Can't scale ${W}x$H [SAR $SARW:$SARH]" \
-			"=> $SCALEW x $SCALEH"
-	    fi
-	    ;;
-	esac
+	W2="`bc2 "scale=0" "${SCALEH%[+-]}*$W$aw/($H$ah)"`"
+	H2="$SCALEH"
+	scale=1
 	;;
     x)	# no scaling needed
 	;;
     *x*)
-	w2="$W"
-	h2="$H"
 	case "z$SCALEW" in
 	z*+)
-	    w="`rnd_up "${SCALEW%[+-]}" "$rw"`"
-	    if [ "$W" -lt "$w" ] ; then
-		VF_SCALE=",scale=w=$w:h=round(ih*ow/iw/sar/$rh)*$rh"
-		VF_SCALE="${VF_SCALE},setsar=sar=1"
-		w2="$w"
-		h2="`bc2 "scale=0" "$H*$w2*$SARH/$W/$SARW/$rh*$rh"`"
+	    if [ "$W2" -lt "${SCALEW%[+-]}" ] ; then
+		H2="`bc2 "scale=0" "${SCALEW%[+-]}*$H$ah/($W$aw)"`"
+		W2="${SCALEW%[+-]}"
+		scale=1
 	    fi
 	    ;;
 	z*-)
-	    w="`rnd_down "${SCALEW%[+-]}" "$rw"`"
-	    if [ "$W" -gt "$w" ] ; then
-		VF_SCALE=",scale=w=$w:h=round(ih*ow/iw/sar/$rh)*$rh"
-		VF_SCALE="${VF_SCALE},setsar=sar=1"
-		w2="$w"
-		h2="`bc2 "scale=0" "$H*$w2*$SARH/$W/$SARW/$rh*$rh"`"
+	    if [ "$W2" -gt "${SCALEW%[+-]}" ] ; then
+		H2="`bc2 "scale=0" "${SCALEW%[+-]}*$H$ah/($W$aw)"`"
+		W2="${SCALEW%[+-]}"
+		scale=1
 	    fi
 	    ;;
 	esac
 	case "z$SCALEH" in
 	z*+)
-	    h="`rnd_up "${SCALEH%[+-]}" "$rh"`"
-	    if [ "$h2" -lt "$h" ] ; then
-		VF_SCALE=",scale=h=$h:w=round(iw*oh/ih*sar/$rw)*$rw"
-		VF_SCALE="${VF_SCALE},setsar=sar=1"
-		h2="$h"
-		w2="`bc2 "scale=0" "$W*$h2*$SARW/$H/$SARH/$rw*$rw"`"
+	    if [ "$H2" -lt "${SCALEH%[+-]}" ] ; then
+		W2="`bc2 "scale=0" "${SCALEH%[+-]}*$W$aw/($H$ah)"`"
+		H2="${SCALEH%[+-]}"
+		scale=1
 	    fi
 	    ;;
 	z*-)
-	    h="`rnd_down "${SCALEH%[+-]}" "$rh"`"
-	    if [ "$h2" -gt "$h" ] ; then
-		VF_SCALE=",scale=h=$h:w=round(iw*oh/ih*sar/$rw)*$rw"
-		VF_SCALE="${VF_SCALE},setsar=sar=1"
-		h2="$h"
-		w2="`bc2 "scale=0" "$W*$h2*$SARW/$H/$SARH/$rw*$rw"`"
+	    if [ "$H2" -gt "${SCALEH%[+-]}" ] ; then
+		W2="`bc2 "scale=0" "${SCALEH%[+-]}*$W$aw/($H$ah)"`"
+		H2="${SCALEH%[+-]}"
+		scale=1
 	    fi
 	    ;;
 	esac
-	# Check if scaled size fits -w/-h after 2nd attempt:
+	;;
+    esac
+    unset aw ah
+
+    # Check new W2xH2 against -w/-h constraints:
+    if [ "z$scale" = "z1" ] ; then
+	# Check if W2 fits -w:
 	case "z$SCALEW" in
 	z*+)
-	    if [ "$w2" -lt "$w" ] ; then
+	    if [ "$W2" -lt "${SCALEW%[+-]}" ] ; then
 		die "Can't scale ${W}x$H [SAR $SARW:$SARH]" \
 			"=> $SCALEW x $SCALEH"
 	    fi
 	    ;;
 	z*-)
-	    if [ "$w2" -gt "$w" ] ; then
+	    if [ "$W2" -gt "${SCALEW%[+-]}" ] ; then
 		die "Can't scale ${W}x$H [SAR $SARW:$SARH]" \
 			"=> $SCALEW x $SCALEH"
 	    fi
 	    ;;
 	esac
-	;;
-    esac
-    unset w2
-    unset h2
-    unset w
-    unset h
+	# Check if H2 fits -h:
+	case "z$SCALEH" in
+	z*+)
+	    if [ "$H2" -lt "${SCALEH%[+-]}" ] ; then
+		die "Can't scale ${W}x$H [SAR $SARW:$SARH]" \
+			"=> $SCALEW x $SCALEH"
+	    fi
+	    ;;
+	z*-)
+	    if [ "$H2" -gt "${SCALEH%[+-]}" ] ; then
+		die "Can't scale ${W}x$H [SAR $SARW:$SARH]" \
+			"=> $SCALEW x $SCALEH"
+	    fi
+	    ;;
+	esac
+    fi
 
-    # If input SAR is not 1:1 and no scaling+setsar was added to
-    # VF_SCALE, force downscaling of either W or H to drive output
-    # SAR to 1:1
-    case "z$VF_SCALE" in
-    z*,setsar=*)
-	# no action needed
-	;;
-    z*)
-	# For example, 720x480 [SAR 8:9 DAR 4:3] video gets its H
-	# upscaled to 720x540 on screen, because SARH (9) is greater
-	# than SARW (8). Therefore here we downscale W from 720 to
-	# 720*SARW/SARH=720*8/9=640.
-	if [ "$SARW" -lt "$SARH" ] ; then
-	    VF_SCALE=",scale=h=$H:w=round(iw*oh/ih*sar/$rw)*$rw"
-	    VF_SCALE="${VF_SCALE},setsar=sar=1"
-	elif [ "$SARW" -gt "$SARH" ] ; then
-	    VF_SCALE=",scale=w=$W:h=round(ih*ow/iw/sar/$rh)*$rh"
-	    VF_SCALE="${VF_SCALE},setsar=sar=1"
+    if [ "z$scale" = "z1" ] ; then
+	# Round W2/H2 to nearest standard width/height if difference
+	# is less than 16, otherwize round to 2 pixels.
+	#
+	# If -w doesn't set fixed width, round it:
+	case "z$SCALEW" in z*[+-]|z)
+	    W2="`closest_std width "$W2" "$SCALEW" 16 2`";;
+	esac
+	# If -h doesn't set fixed height, round it:
+	case "z$SCALEH" in z*[+-]|z)
+	    H2="`closest_std height "$H2" "$SCALEH" 16 2`";;
+	esac
+
+	# Append 'scale' and 'setsar' filters:
+	VF_SCALE=",scale=h=$H2:w=$W2"
+	mark="$mark ${W2}x$H2"
+	if [ "z$NORMALIZE_SAR" = "z1" ] ; then
+	    VF_SCALE="$VF_SCALE,setsar=sar=1"
+	    mark="$mark [SAR 1:1]"
+	#else
+	#    VF_SCALE="$VF_SCALE,setsar=sar=$SARW/$SARH"
 	fi
-	;;
-    esac
-    unset SARW
-    unset SARH
-    unset W
-    unset H
-    unset rw
-    unset rh
+    fi
+
+    unset W2 H2 SARW SARH scale W H
 
     # Ad-hoc fixes for 24000/1001, 30000/1001 & 60000/1001 rates:
     case "z,$VFPRE_OTHER$VF_OTHER" in
@@ -1574,15 +1657,25 @@ if [ "z$VID" != "znone" ] ; then
     z*)
 	case "z$desc" in
 	z*[,\ ]"23.98 fps"[,\ ]*)
-	    VF_OTHER="$VF_OTHER,fps=fps=24000/1001";;
+	    VF_OTHER="$VF_OTHER,fps=fps=24000/1001"
+	    mark="$mark 24000/1001"
+	    ;;
 	z*[,\ ]"29.97 fps"[,\ ]*)
-	    VF_OTHER="$VF_OTHER,fps=fps=30000/1001";;
+	    VF_OTHER="$VF_OTHER,fps=fps=30000/1001"
+	    mark="$mark 24000/1001"
+	    ;;
 	z*[,\ ]"59.94 fps"[,\ ]*)
-	    VF_OTHER="$VF_OTHER,fps=fps=60000/1001";;
+	    VF_OTHER="$VF_OTHER,fps=fps=60000/1001"
+	    mark="$mark 24000/1001"
+	    ;;
 	esac
 	;;
     esac
-    unset desc
+
+    # Mimic listing of AIDs/SIDs:
+    case "z$mark" in z)mark=" *";; z?*)mark=" =>$mark";; esac
+    echo "${sname/VID/vid\#}: $desc$mark"
+    unset sname desc mark
 fi
 rm -f "$TMP_OUT"
 
