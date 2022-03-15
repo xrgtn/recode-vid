@@ -498,6 +498,7 @@ qhd	960x540
 4kdci	4096x2160
 uhd2160	3840x2160
 uhd4320	7680x4320
+-	720x400
 EOF
     if [ "z$_m" != "z" ] && [ "${_m#-}" -gt "$4" ] ; then
 	_c=""
@@ -1629,15 +1630,15 @@ if [ "z$VID" != "znone" ] ; then
 
     if [ "z$scale" = "z1" ] ; then
 	# Round W2/H2 to nearest standard width/height if difference
-	# is less than 16, otherwize round to 2 pixels.
+	# is less than 8, otherwize round to 2 pixels.
 	#
 	# If -w doesn't set fixed width, round it:
 	case "z$SCALEW" in z*[+-]|z)
-	    W2="`closest_std width "$W2" "$SCALEW" 16 2`";;
+	    W2="`closest_std width "$W2" "$SCALEW" 8 2`";;
 	esac
 	# If -h doesn't set fixed height, round it:
 	case "z$SCALEH" in z*[+-]|z)
-	    H2="`closest_std height "$H2" "$SCALEH" 16 2`";;
+	    H2="`closest_std height "$H2" "$SCALEH" 8 2`";;
 	esac
 
 	# Append 'scale' and 'setsar' filters:
