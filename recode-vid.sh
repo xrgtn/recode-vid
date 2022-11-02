@@ -1667,11 +1667,11 @@ if [ "z$VID" != "znone" ] ; then
 	    ;;
 	z*[,\ ]"29.97 fps"[,\ ]*)
 	    VF_OTHER="$VF_OTHER,fps=fps=30000/1001"
-	    mark="$mark 24000/1001"
+	    mark="$mark 30000/1001"
 	    ;;
 	z*[,\ ]"59.94 fps"[,\ ]*)
 	    VF_OTHER="$VF_OTHER,fps=fps=60000/1001"
-	    mark="$mark 24000/1001"
+	    mark="$mark 60000/1001"
 	    ;;
 	esac
 	;;
