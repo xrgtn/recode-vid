@@ -1693,7 +1693,7 @@ fi
 # necessary to enable sound stretching/squeezing to match video
 # timestamps. Otherwize the resulting video will more often than not
 # have audible "clicks" every several seconds.
-aresample="aresample=\${ARATE}och=2:osf=fltp:ocl=downmix:async=4000"
+aresample="aresample=\${ARATE}osf=fltp:ochl=downmix:async=4000"
 aresample="$aresample:min_comp=0.05"
 #XXX:?#aresample="$aresample:min_comp=0.01:min_hard_comp=\${ASD}"
 #XXX:?#aresample="$aresample:max_soft_comp=0.2"
