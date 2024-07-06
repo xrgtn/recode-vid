@@ -1750,7 +1750,7 @@ ffmpeg="ffmpeg -hide_banner $ANALYZEDURATION $PROBESIZE"
 append_ingrps2cmd ffmpeg
 ffmpeg="$ffmpeg -map_metadata -1"
 ffmpeg="$ffmpeg -map_chapters -1"
-ffmpeg="$ffmpeg -dn -vn"
+ffmpeg="$ffmpeg -dn"
 ffmpeg="$ffmpeg -filter_complex \"[$VID]\${VFPRE_OTHER}hqdn3d=\${HQDN3D}"
 ffmpeg="$ffmpeg\${VF_SCALE}\${VF_SUBS}\${VF_OTHER}\""
 ffmpeg="$ffmpeg -c:v \"\$OUT0VC\""
